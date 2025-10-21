@@ -38,16 +38,16 @@ function RosterEngine() {
     /**
      * @property
      * @public
-     * @type {LinksEmployeePool}
+     * @type {JunctionEmployeePool}
      */
-    this.linksEmployeePool = null;
+    this.junctionEmployeePool = null;
 
     /**
      * @property
      * @public
-     * @type {LinksRolePool}
+     * @type {JunctionRolePool}
      */
-    this.linksRolePool = null;
+    this.junctionRolePool = null;
 
     /**
      * @property
@@ -186,7 +186,7 @@ RosterEngine.prototype.set_holidays = function( holidays ) {
  */
 RosterEngine.prototype.set_linksEmployeePool = function( linksEmployeePool ) {
 
-    this.linksEmployeePool = new LinksEmployeePool( linksEmployeePool );
+    this.junctionEmployeePool = new JunctionEmployeePool( linksEmployeePool );
 
 };
 
@@ -197,7 +197,7 @@ RosterEngine.prototype.set_linksEmployeePool = function( linksEmployeePool ) {
  */
 RosterEngine.prototype.set_linksRolePool = function( linksRolePool ) {
 
-    this.linksRolePool = new LinksRolePool( linksRolePool );
+    this.junctionRolePool = new JunctionRolePool( linksRolePool );
 
 };
 
@@ -304,7 +304,7 @@ RosterEngine.prototype.calculate = function() {
             /**
              * load the pools that can accomodate this role, sorted by their sort_index in ascending order
              */
-            var pools = this.linksRolePool.getPoolsForRoleId( db_role.id, this.pools );
+            var pools = this.junctionRolePool.getPoolsForRoleId( db_role.id, this.pools );
 
             /**
              * If no pools found for this role, no employee can be assigned,
@@ -321,7 +321,7 @@ RosterEngine.prototype.calculate = function() {
             /**
              * load all employees with their data from the employees table, that belong to the pools we deduced previously
              */
-            var employees = this.linksEmployeePool.getUniqueEmployeesInPools( pools, this.employees ); console.log( employees );
+            var employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees ); console.log( employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees
@@ -371,7 +371,7 @@ RosterEngine.prototype.calculate = function() {
             /**
              * load the pools that can accomodate this role, sorted by their sort_index in ascending order
              */
-            var pools = this.linksRolePool.getPoolsForRoleId( db_role.id, this.pools );
+            var pools = this.junctionRolePool.getPoolsForRoleId( db_role.id, this.pools );
 
             /**
              * If no pools found for this role, no employee can be assigned,
@@ -388,7 +388,7 @@ RosterEngine.prototype.calculate = function() {
             /**
              * load all employees with their data from the employees table, that belong to the pools we deduced previously
              */
-            var employees = this.linksEmployeePool.getUniqueEmployeesInPools( pools, this.employees ); console.log( employees );
+            var employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees ); console.log( employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees

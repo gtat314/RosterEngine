@@ -105,6 +105,13 @@ function RosterEngine() {
      */
     this.calendarView = null;
 
+    /**
+     * @property
+     * @private
+     * @type {Object[]}
+     */
+    this._allocations = [];
+
 };
 
 /**
@@ -115,7 +122,7 @@ function RosterEngine() {
  */
 RosterEngine.prototype.set_inputs = function( rosterCalendar ) {
 
-    this.inputs = rosterCalendar.getInputs(); console.log( this.inputs.length );
+    this.inputs = rosterCalendar.getInputs();
 
     this.calendarView = rosterCalendar;
 
@@ -267,6 +274,30 @@ RosterEngine.prototype.set_timetables = function( timetables ) {
 
 };
 
+RosterEngine.prototype.save = function() {
+
+    this.calendarView.progressModal.setSubtitle( 'Αποθήκευση βαρδιών' );
+
+    if ( this._allocations.length > 0 ) {
+
+        new Relay( 'POST', '/api/calendar/automatic-allocations/', {
+            'allocations': this._allocations
+        }).call( function(){
+
+            setTimeout( function(){
+
+                // window.location.reload();
+
+            }, 500);
+
+        });
+
+    }
+
+    // window.location.reload();
+
+};
+
 
 
 
@@ -281,6 +312,8 @@ RosterEngine.prototype.calculate = function() {
 
         if ( db_calendarRow.is_necessary === 1 ) {
 
+            this.calendarView.progressModal.stepUp();
+
             /**
              * First check if someone manually assigned beforehand an employee to this shift
              * In this case, remove the employee from the available employees we have to assign for this day
@@ -289,8 +322,6 @@ RosterEngine.prototype.calculate = function() {
             if ( db_calendarRow.is_manually_set === 1 ) {
 
                 this.employees.removeById( db_calendarRow.employee_id );
-
-                this.calendarView.progressModal.stepUp();
 
                 continue;
 
@@ -312,8 +343,6 @@ RosterEngine.prototype.calculate = function() {
              */
             if ( pools === null ) {
 
-                this.calendarView.progressModal.stepUp();
-
                 continue;
 
             }
@@ -321,7 +350,7 @@ RosterEngine.prototype.calculate = function() {
             /**
              * load all employees with their data from the employees table, that belong to the pools we deduced previously
              */
-            var employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees ); console.log( employees );
+            var employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees
@@ -329,11 +358,34 @@ RosterEngine.prototype.calculate = function() {
              */
             if ( employees === null ) {
 
-                this.calendarView.progressModal.stepUp();
+                continue;
+
+            }
+
+            /**
+             * For all the employees deduced above, check which one of them is not on leave this day and keep only those
+             */
+            var employeesNotOnLeaveThisDay = employees.getWithoutLeaveForDate( db_calendarRow.date, this.leaves );
+
+            /**
+             * if no such employee has been found, it means that all suitable employees for this role for this day, are on leave
+             * so there is no reason to waste any more time with this shift
+             */
+            if ( employeesNotOnLeaveThisDay === null ) {
 
                 continue;
 
             }
+
+            var selectedEmployee = employeesNotOnLeaveThisDay.getElement( 0 );
+
+            this._allocations.push({
+                'id': db_calendarRow.id,
+                'employee_id': selectedEmployee.id,
+                'employee_name': selectedEmployee.getFullname()
+            });
+
+            this.employees.removeById( selectedEmployee.id );
 
         }
 
@@ -348,6 +400,8 @@ RosterEngine.prototype.calculate = function() {
 
         if ( db_calendarRow.is_necessary !== 1 ) {
 
+            this.calendarView.progressModal.stepUp();
+
             /**
              * First check if someone manually assigned beforehand an employee to this shift
              * In this case, remove the employee from the available employees we have to assign for this day
@@ -356,8 +410,6 @@ RosterEngine.prototype.calculate = function() {
             if ( db_calendarRow.is_manually_set === 1 ) {
 
                 this.employees.removeById( db_calendarRow.employee_id );
-
-                this.calendarView.progressModal.stepUp();
 
                 continue;
 
@@ -379,8 +431,6 @@ RosterEngine.prototype.calculate = function() {
              */
             if ( pools === null ) {
 
-                this.calendarView.progressModal.stepUp();
-
                 continue;
 
             }
@@ -388,7 +438,7 @@ RosterEngine.prototype.calculate = function() {
             /**
              * load all employees with their data from the employees table, that belong to the pools we deduced previously
              */
-            var employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees ); console.log( employees );
+            var employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees
@@ -397,14 +447,39 @@ RosterEngine.prototype.calculate = function() {
              */
             if ( employees === null ) {
 
-                this.calendarView.progressModal.stepUp();
+                continue;
+
+            }
+
+            /**
+             * For all the employees deduced above, check which one of them is not on leave this day and keep only those
+             */
+            var employeesNotOnLeaveThisDay = employees.getWithoutLeaveForDate( db_calendarRow.date, this.leaves );
+
+            /**
+             * if no such employee has been found, it means that all suitable employees for this role for this day, are on leave
+             * so there is no reason to waste any more time with this shift
+             */
+            if ( employeesNotOnLeaveThisDay === null ) {
 
                 continue;
 
             }
 
+            var selectedEmployee = employeesNotOnLeaveThisDay.getElement( 0 );
+
+            this._allocations.push({
+                'id': db_calendarRow.id,
+                'employee_id': selectedEmployee.id,
+                'employee_name': selectedEmployee.getFullname()
+            });
+
+            this.employees.removeById( selectedEmployee.id );
+
         }
 
     }
+
+    console.log( this._allocations );
 
 };

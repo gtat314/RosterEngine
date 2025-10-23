@@ -286,15 +286,17 @@ RosterEngine.prototype.save = function() {
 
             setTimeout( function(){
 
-                // window.location.reload();
+                window.location.reload();
 
             }, 500);
 
         });
 
-    }
+    } else {
 
-    // window.location.reload();
+        window.location.reload();
+
+    }
 
 };
 

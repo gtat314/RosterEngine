@@ -342,6 +342,93 @@ RosterEngine.prototype._allocateEmployeeToTodayShift = function( employee, calen
 
 };
 
+/**
+ * @method
+ * @private
+ * @param {String} dateString YYYY-MM-DD
+ * @returns {String} YYYY-MM-DD
+ */
+RosterEngine.prototype._getPreviousDate = function( dateString ) {
+
+    var date = new Date( dateString );
+
+    date.setDate( date.getDate() - 1 );
+
+    var year = date.getFullYear();
+    var month = String( date.getMonth() + 1 ).padStart( 2, '0' );
+    var day = String( date.getDate() ).padStart( 2, '0' );
+
+    var formatted = year + '-' + month + '-' + day;
+
+    return formatted;
+
+};
+
+/**
+ * 
+ * @param {String} currentDateStr YYYY-MM-DD
+ * @param {Number} shiftId 
+ * @returns {DB_Calendar|null}
+ */
+RosterEngine.prototype._getMostRecentCalendarShift = function( currentDateStr, shiftId ) {
+
+    var previousDateString = this._getPreviousDate( currentDateStr );
+
+    for ( var i = 0 ; i < 7 ; i++ ) {
+
+        var olderCalendarRow = this.olderCalendarRows.getByDateAndShiftId( previousDateString, shiftId );
+
+        if ( olderCalendarRow === null ) {
+
+            previousDateString = this._getPreviousDate( previousDateString );
+
+        } else {
+
+            return olderCalendarRow;
+
+        }
+
+    }
+
+    return null;
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {DB_Calendar} todayCalendarRow 
+ * @param {EmployeesCollection} availableEmployees
+ * @returns {DB_Employee}
+ */
+RosterEngine.prototype._findEmployeeBySourceShift = function( todayCalendarRow, availableEmployees ) {
+
+    var linkedTargetShift = this.shifts.getById( todayCalendarRow.shift_id );
+
+    var linkedSourceShiftId = linkedTargetShift.propagate_from_shift_id;
+
+    var olderCalendarRow = this._getMostRecentCalendarShift( todayCalendarRow.date, linkedSourceShiftId );
+
+    if ( olderCalendarRow !== null ) {
+
+        if ( olderCalendarRow.employee_id !== null ) {
+
+            var employee = availableEmployees.getById( olderCalendarRow.employee_id );
+
+            if ( employee !== null ) {
+
+                return employee;
+
+            }
+
+        }
+
+    }
+
+    return null;
+
+};
+
 
 
 
@@ -413,6 +500,27 @@ RosterEngine.prototype.calculate = function() {
             if ( employeesNotOnLeaveThisDay === null ) { continue; }
 
             /**
+             * If this shift is a linked shift, and specifically a target shift, meaning it should be automatically filled by the same employee that filled another shift a previous day
+             * try to find which employee was assigned to that source shift, if any
+             * and if such employee exists AND is also among the employeesNotOnLeaveThisDay we deduced earlier
+             * assign this employee and move on to the next today's shift
+             */
+            if ( todayCalendarRow.isLinkedTargetShift( this.shifts ) === true ) {
+
+                let employeeToAssign = this._findEmployeeBySourceShift( todayCalendarRow, employeesNotOnLeaveThisDay );
+
+                if ( employeeToAssign !== null ) {
+
+                    this._allocateEmployeeToTodayShift( employeeToAssign, todayCalendarRow );
+                    this.employees.removeById( employeeToAssign.id );
+
+                    continue;
+
+                }
+
+            }
+
+            /**
              * we have a winner for this shift! of course for now this is a placeholder, and much more brain power needs to be consumed on this point
              */
             let selectedEmployee = employeesNotOnLeaveThisDay.getElement( 0 );
@@ -479,6 +587,27 @@ RosterEngine.prototype.calculate = function() {
              * so there is no reason to waste any more time with this shift
              */
             if ( employeesNotOnLeaveThisDay === null ) { continue; }
+
+            /**
+             * If this shift is a linked shift, and specifically a target shift, meaning it should be automatically filled by the same employee that filled another shift a previous day
+             * try to find which employee was assigned to that source shift, if any
+             * and if such employee exists AND is also among the employeesNotOnLeaveThisDay we deduced earlier
+             * assign this employee and move on to the next today's shift
+             */
+            if ( todayCalendarRow.isLinkedTargetShift( this.shifts ) === true ) {
+
+                let employeeToAssign = this._findEmployeeBySourceShift( todayCalendarRow, employeesNotOnLeaveThisDay );
+
+                if ( employeeToAssign !== null ) {
+
+                    this._allocateEmployeeToTodayShift( employeeToAssign, todayCalendarRow );
+                    this.employees.removeById( employeeToAssign.id );
+
+                    continue;
+
+                }
+
+            }
 
             /**
              * we have a winner for this shift! of course for now this is a placeholder, and much more brain power needs to be consumed on this point

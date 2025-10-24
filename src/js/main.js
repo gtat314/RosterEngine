@@ -5,7 +5,7 @@ function RosterEngine() {
      * @public
      * @type {CalendarCollection}
      */
-    this.calendar = null;
+    this.olderCalendarRows = null;
 
     /**
      * @property
@@ -101,6 +101,13 @@ function RosterEngine() {
     /**
      * @property
      * @public
+     * @type {CalendarCollection}
+     */
+    this.todayCalendarRows = null;
+
+    /**
+     * @property
+     * @public
      * @type {RosterCalendar}
      */
     this.calendarView = null;
@@ -129,6 +136,16 @@ RosterEngine.prototype.set_inputs = function( rosterCalendar ) {
     this.calendarView.progressModal.setSteps( this.inputs.length );
     this.calendarView.progressModal.setSubtitle( 'Εντοπίστηκαν 230 βάρδιες' );
 
+    var rows = [];
+
+    for ( var input of this.inputs ) {
+
+        rows.push( input.calendar );
+
+    }
+
+    this.todayCalendarRows = new CalendarCollection( rows );
+
 };
 
 /**
@@ -138,7 +155,7 @@ RosterEngine.prototype.set_inputs = function( rosterCalendar ) {
  */
 RosterEngine.prototype.set_calendar = function( calendar ) {
 
-    this.calendar = new CalendarCollection( calendar );
+    this.olderCalendarRows = new CalendarCollection( calendar );
 
 };
 
@@ -274,6 +291,11 @@ RosterEngine.prototype.set_timetables = function( timetables ) {
 
 };
 
+/**
+ * @method
+ * @public
+ * @returns {void}
+ */
 RosterEngine.prototype.save = function() {
 
     this.calendarView.progressModal.setSubtitle( 'Αποθήκευση βαρδιών' );
@@ -303,90 +325,103 @@ RosterEngine.prototype.save = function() {
 
 
 
+/**
+ * @method
+ * @private
+ * @param {DB_Employee} employee 
+ * @param {DB_Calendar} calendarRow 
+ * @returns {void}
+ */
+RosterEngine.prototype._allocateEmployeeToTodayShift = function( employee, calendarRow ) {
+
+    this._allocations.push({
+        'id': calendarRow.id,
+        'employee_id': employee.id,
+        'employee_name': employee.getFullname()
+    });
+
+};
+
+
+
+
 RosterEngine.prototype.calculate = function() {
 
     /**
-     * first iterate over all available shifts for today, that are marked as necessary, meaning they have a slots_min value of non zero
+     * first iterate over all available shifts for today, and check if any of them is manually set with an employee, by a user of the app
+     * if we find manually set shifts, remove their assigned employee from the employees array we have in ram
      */
-    for ( var input of this.inputs ) {
+    for ( let todayCalendarRow of this.todayCalendarRows ) {
 
-        var db_calendarRow = input.calendar;
+        if ( todayCalendarRow.is_manually_set === 1 ) {
 
-        if ( db_calendarRow.is_necessary === 1 ) {
+            this.employees.removeById( todayCalendarRow.employee_id );
 
-            this.calendarView.progressModal.stepUp();
+        }
+
+    }
+
+    /**
+     * second, iterate over all available shifts for today, that are marked as necessary, meaning they have a slots_min value of non zero
+     */
+    for ( let todayCalendarRow of this.todayCalendarRows ) {
+
+        if ( todayCalendarRow.is_necessary === 1 ) {
 
             /**
              * First check if someone manually assigned beforehand an employee to this shift
-             * In this case, remove the employee from the available employees we have to assign for this day
-             * And move on to the next shift, since there is no reason to waste any more time with this one
+             * In this case, move on to the next shift, since there is no reason to waste any more time with this one
              */
-            if ( db_calendarRow.is_manually_set === 1 ) {
-
-                this.employees.removeById( db_calendarRow.employee_id );
-
-                continue;
-
-            }
+            if ( todayCalendarRow.is_manually_set === 1 ) { continue; }
 
             /**
              * load the role data from the role table, using the role_id of the calendar row
              */
-            var db_role = this.roles.getById( db_calendarRow.role_id );
+            let role = this.roles.getById( todayCalendarRow.role_id );
 
             /**
              * load the pools that can accomodate this role, sorted by their sort_index in ascending order
              */
-            var pools = this.junctionRolePool.getPoolsForRoleId( db_role.id, this.pools );
+            let pools = this.junctionRolePool.getPoolsForRoleId( role.id, this.pools );
 
             /**
              * If no pools found for this role, no employee can be assigned,
              * so there is no reason to waste any more time with this shift
              */
-            if ( pools === null ) {
-
-                continue;
-
-            }
+            if ( pools === null ) { continue; }
 
             /**
              * load all employees with their data from the employees table, that belong to the pools we deduced previously
              */
-            var employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees );
+            let employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees
              * or that the employees of these pools have already been manually assigned beforehand unbeknownst to us
              */
-            if ( employees === null ) {
-
-                continue;
-
-            }
+            if ( employees === null ) { continue; }
 
             /**
              * For all the employees deduced above, check which one of them is not on leave this day and keep only those
              */
-            var employeesNotOnLeaveThisDay = employees.getWithoutLeaveForDate( db_calendarRow.date, this.leaves );
+            let employeesNotOnLeaveThisDay = employees.getWithoutLeaveForDate( todayCalendarRow.date, this.leaves );
 
             /**
              * if no such employee has been found, it means that all suitable employees for this role for this day, are on leave
              * so there is no reason to waste any more time with this shift
              */
-            if ( employeesNotOnLeaveThisDay === null ) {
+            if ( employeesNotOnLeaveThisDay === null ) { continue; }
 
-                continue;
+            /**
+             * we have a winner for this shift! of course for now this is a placeholder, and much more brain power needs to be consumed on this point
+             */
+            let selectedEmployee = employeesNotOnLeaveThisDay.getElement( 0 );
 
-            }
-
-            var selectedEmployee = employeesNotOnLeaveThisDay.getElement( 0 );
-
-            this._allocations.push({
-                'id': db_calendarRow.id,
-                'employee_id': selectedEmployee.id,
-                'employee_name': selectedEmployee.getFullname()
-            });
-
+            /**
+             * we have assign our winner to the shift
+             * and we remove him from the employees collection we have in ram
+             */
+            this._allocateEmployeeToTodayShift( selectedEmployee, todayCalendarRow );
             this.employees.removeById( selectedEmployee.id );
 
         }
@@ -396,86 +431,65 @@ RosterEngine.prototype.calculate = function() {
     /**
      * then iterate over all today's shifts working on the ones that are not considered necessary
      */
-    for ( var input of this.inputs ) {
+    for ( let todayCalendarRow of this.todayCalendarRows ) {
 
-        var db_calendarRow = input.calendar;
-
-        if ( db_calendarRow.is_necessary !== 1 ) {
-
-            this.calendarView.progressModal.stepUp();
+        if ( todayCalendarRow.is_necessary !== 1 ) {
 
             /**
              * First check if someone manually assigned beforehand an employee to this shift
-             * In this case, remove the employee from the available employees we have to assign for this day
-             * And move on to the next shift, since there is no reason to waste any more time with this one
+             * In this case move on to the next shift, since there is no reason to waste any more time with this one
              */
-            if ( db_calendarRow.is_manually_set === 1 ) {
-
-                this.employees.removeById( db_calendarRow.employee_id );
-
-                continue;
-
-            }
+            if ( todayCalendarRow.is_manually_set === 1 ) { continue; }
 
             /**
              * load the role data from the role table, using the role_id of the calendar row
              */
-            var db_role = this.roles.getById( db_calendarRow.role_id );
+            let role = this.roles.getById( todayCalendarRow.role_id );
 
             /**
              * load the pools that can accomodate this role, sorted by their sort_index in ascending order
              */
-            var pools = this.junctionRolePool.getPoolsForRoleId( db_role.id, this.pools );
+            let pools = this.junctionRolePool.getPoolsForRoleId( role.id, this.pools );
 
             /**
              * If no pools found for this role, no employee can be assigned,
              * so there is no reason to waste any more time with this shift
              */
-            if ( pools === null ) {
-
-                continue;
-
-            }
+            if ( pools === null ) { continue; }
 
             /**
              * load all employees with their data from the employees table, that belong to the pools we deduced previously
              */
-            var employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees );
+            let employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees
              * or that the employees of these pools have already been manually assigned beforehand unbeknownst to us
              * or that all employees have been assigned to the previously necessary shifts
              */
-            if ( employees === null ) {
-
-                continue;
-
-            }
+            if ( employees === null ) { continue; }
 
             /**
              * For all the employees deduced above, check which one of them is not on leave this day and keep only those
              */
-            var employeesNotOnLeaveThisDay = employees.getWithoutLeaveForDate( db_calendarRow.date, this.leaves );
+            let employeesNotOnLeaveThisDay = employees.getWithoutLeaveForDate( todayCalendarRow.date, this.leaves );
 
             /**
              * if no such employee has been found, it means that all suitable employees for this role for this day, are on leave
              * so there is no reason to waste any more time with this shift
              */
-            if ( employeesNotOnLeaveThisDay === null ) {
+            if ( employeesNotOnLeaveThisDay === null ) { continue; }
 
-                continue;
+            /**
+             * we have a winner for this shift! of course for now this is a placeholder, and much more brain power needs to be consumed on this point
+             */
+            let selectedEmployee = employeesNotOnLeaveThisDay.getElement( 0 );
 
-            }
-
-            var selectedEmployee = employeesNotOnLeaveThisDay.getElement( 0 );
-
-            this._allocations.push({
-                'id': db_calendarRow.id,
-                'employee_id': selectedEmployee.id,
-                'employee_name': selectedEmployee.getFullname()
-            });
-
+            /**
+             * we have assign our winner to the shift
+             * and we remove him from the employees collection we have in ram
+             */
+            this._allocateEmployeeToTodayShift( selectedEmployee, todayCalendarRow );
             this.employees.removeById( selectedEmployee.id );
 
         }

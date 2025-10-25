@@ -435,21 +435,26 @@ RosterEngine.prototype._findEmployeeBySourceShift = function( todayCalendarRow, 
 RosterEngine.prototype.calculate = function() {
 
     /**
-     * first iterate over all available shifts for today, and check if any of them is manually set with an employee, by a user of the app
+     * first, keep in the entire scope, only the employees that are not in any kind of leave for today
+     */
+    let employees = this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves );
+
+    /**
+     * second, iterate over all available shifts for today, and check if any of them is manually set with an employee, by a user of the app
      * if we find manually set shifts, remove their assigned employee from the employees array we have in ram
      */
     for ( let todayCalendarRow of this.todayCalendarRows ) {
 
         if ( todayCalendarRow.is_manually_set === 1 ) {
 
-            this.employees.removeById( todayCalendarRow.employee_id );
+            employees.removeById( todayCalendarRow.employee_id );
 
         }
 
     }
 
     /**
-     * second, iterate over all available shifts for today, that are marked as necessary, meaning they have a slots_min value of non zero
+     * third, iterate over all available shifts for today, that are marked as necessary, meaning they have a slots_min value of non zero
      */
     for ( let todayCalendarRow of this.todayCalendarRows ) {
 
@@ -480,39 +485,28 @@ RosterEngine.prototype.calculate = function() {
             /**
              * load all employees with their data from the employees table, that belong to the pools we deduced previously
              */
-            let employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees );
+            let associatedEmployees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees
              * or that the employees of these pools have already been manually assigned beforehand unbeknownst to us
              */
-            if ( employees === null ) { continue; }
-
-            /**
-             * For all the employees deduced above, check which one of them is not on leave this day and keep only those
-             */
-            let employeesNotOnLeaveThisDay = employees.getWithoutLeaveForDate( todayCalendarRow.date, this.leaves );
-
-            /**
-             * if no such employee has been found, it means that all suitable employees for this role for this day, are on leave
-             * so there is no reason to waste any more time with this shift
-             */
-            if ( employeesNotOnLeaveThisDay === null ) { continue; }
+            if ( associatedEmployees === null ) { continue; }
 
             /**
              * If this shift is a linked shift, and specifically a target shift, meaning it should be automatically filled by the same employee that filled another shift a previous day
              * try to find which employee was assigned to that source shift, if any
-             * and if such employee exists AND is also among the employeesNotOnLeaveThisDay we deduced earlier
+             * and if such employee exists AND is also among the associatedEmployees we deduced earlier
              * assign this employee and move on to the next today's shift
              */
             if ( todayCalendarRow.isLinkedTargetShift( this.shifts ) === true ) {
 
-                let employeeToAssign = this._findEmployeeBySourceShift( todayCalendarRow, employeesNotOnLeaveThisDay );
+                let employeeToAssign = this._findEmployeeBySourceShift( todayCalendarRow, associatedEmployees );
 
                 if ( employeeToAssign !== null ) {
 
                     this._allocateEmployeeToTodayShift( employeeToAssign, todayCalendarRow );
-                    this.employees.removeById( employeeToAssign.id );
+                    employees.removeById( employeeToAssign.id );
 
                     continue;
 
@@ -523,21 +517,21 @@ RosterEngine.prototype.calculate = function() {
             /**
              * we have a winner for this shift! of course for now this is a placeholder, and much more brain power needs to be consumed on this point
              */
-            let selectedEmployee = employeesNotOnLeaveThisDay.getElement( 0 );
+            let selectedEmployee = associatedEmployees.getElement( 0 );
 
             /**
              * we have assign our winner to the shift
              * and we remove him from the employees collection we have in ram
              */
             this._allocateEmployeeToTodayShift( selectedEmployee, todayCalendarRow );
-            this.employees.removeById( selectedEmployee.id );
+            employees.removeById( selectedEmployee.id );
 
         }
 
     }
 
     /**
-     * then iterate over all today's shifts working on the ones that are not considered necessary
+     * fourth, iterate over all today's shifts working on the ones that are not considered necessary
      */
     for ( let todayCalendarRow of this.todayCalendarRows ) {
 
@@ -568,40 +562,29 @@ RosterEngine.prototype.calculate = function() {
             /**
              * load all employees with their data from the employees table, that belong to the pools we deduced previously
              */
-            let employees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees );
+            let associatedEmployees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees
              * or that the employees of these pools have already been manually assigned beforehand unbeknownst to us
              * or that all employees have been assigned to the previously necessary shifts
              */
-            if ( employees === null ) { continue; }
-
-            /**
-             * For all the employees deduced above, check which one of them is not on leave this day and keep only those
-             */
-            let employeesNotOnLeaveThisDay = employees.getWithoutLeaveForDate( todayCalendarRow.date, this.leaves );
-
-            /**
-             * if no such employee has been found, it means that all suitable employees for this role for this day, are on leave
-             * so there is no reason to waste any more time with this shift
-             */
-            if ( employeesNotOnLeaveThisDay === null ) { continue; }
+            if ( associatedEmployees === null ) { continue; }
 
             /**
              * If this shift is a linked shift, and specifically a target shift, meaning it should be automatically filled by the same employee that filled another shift a previous day
              * try to find which employee was assigned to that source shift, if any
-             * and if such employee exists AND is also among the employeesNotOnLeaveThisDay we deduced earlier
+             * and if such employee exists AND is also among the associatedEmployees we deduced earlier
              * assign this employee and move on to the next today's shift
              */
             if ( todayCalendarRow.isLinkedTargetShift( this.shifts ) === true ) {
 
-                let employeeToAssign = this._findEmployeeBySourceShift( todayCalendarRow, employeesNotOnLeaveThisDay );
+                let employeeToAssign = this._findEmployeeBySourceShift( todayCalendarRow, associatedEmployees );
 
                 if ( employeeToAssign !== null ) {
 
                     this._allocateEmployeeToTodayShift( employeeToAssign, todayCalendarRow );
-                    this.employees.removeById( employeeToAssign.id );
+                    employees.removeById( employeeToAssign.id );
 
                     continue;
 
@@ -612,14 +595,14 @@ RosterEngine.prototype.calculate = function() {
             /**
              * we have a winner for this shift! of course for now this is a placeholder, and much more brain power needs to be consumed on this point
              */
-            let selectedEmployee = employeesNotOnLeaveThisDay.getElement( 0 );
+            let selectedEmployee = associatedEmployees.getElement( 0 );
 
             /**
              * we have assign our winner to the shift
              * and we remove him from the employees collection we have in ram
              */
             this._allocateEmployeeToTodayShift( selectedEmployee, todayCalendarRow );
-            this.employees.removeById( selectedEmployee.id );
+            employees.removeById( selectedEmployee.id );
 
         }
 

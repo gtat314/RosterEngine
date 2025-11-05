@@ -144,7 +144,17 @@ RosterEngine.prototype.set_inputs = function( rosterCalendar ) {
 
     }
 
-    this.todayCalendarRows = new CalendarCollection( rows );
+};
+
+/**
+ * @method
+ * @public
+ * @param {Object} todayCalendarRows 
+ * @returns {void}
+ */
+RosterEngine.prototype.set_todayCalendarRows = function( todayCalendarRows ) {
+
+    this.todayCalendarRows = new CalendarCollection( todayCalendarRows );
 
 };
 
@@ -152,6 +162,7 @@ RosterEngine.prototype.set_inputs = function( rosterCalendar ) {
  * @method
  * @public
  * @param {Object} calendar 
+ * @returns {void}
  */
 RosterEngine.prototype.set_calendar = function( calendar ) {
 
@@ -294,6 +305,22 @@ RosterEngine.prototype.set_timetables = function( timetables ) {
 /**
  * @method
  * @public
+ * @description this is a helper function for getting some data for UI info client side, and bears no weight in the engine whatsoever
+ * @returns {Number}
+ */
+RosterEngine.prototype.get_employeesWithoutLeaveForDate = function() {
+
+    var employees = this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves );
+
+    this._removeEmployeesThatHadANightShiftTheDayBefore( employees, this.todayCalendarRows.getElement( 0 ).date );
+
+    return employees.length;
+
+};
+
+/**
+ * @method
+ * @public
  * @returns {void}
  */
 RosterEngine.prototype.save = function() {
@@ -429,6 +456,29 @@ RosterEngine.prototype._findEmployeeBySourceShift = function( todayCalendarRow, 
 
 };
 
+/**
+ * 
+ * @param {EmployeesCollection} employees 
+ * @param {String} currentDate YYYY-MM-DD
+ */
+RosterEngine.prototype._removeEmployeesThatHadANightShiftTheDayBefore = function( employees, currentDate ) {
+
+    var previousDateString = this._getPreviousDate( currentDate ); console.log( currentDate ); console.log( previousDateString );
+
+    var previousDateCalendarRows = this.olderCalendarRows.getAllByDate( previousDateString ); console.log( previousDateCalendarRows );
+
+    for ( var row of previousDateCalendarRows ) {
+
+        if ( row.shift_times === '21:00-07:00' && row.employee_id !== null ) {
+
+            employees.removeById( row.employee_id );
+
+        }
+
+    }
+
+};
+
 
 
 
@@ -438,6 +488,11 @@ RosterEngine.prototype.calculate = function() {
      * first, keep in the entire scope, only the employees that are not in any kind of leave for today
      */
     let employees = this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves );
+
+    /**
+     * then remove every employee that the day before filled a night shift: 21:00-07:00. this is not a dayoff, it's just an internal rule they have and doesnt count as day off
+     */
+    this._removeEmployeesThatHadANightShiftTheDayBefore( employees, this.todayCalendarRows.getElement( 0 ).date );
 
     /**
      * second, iterate over all available shifts for today, and check if any of them is manually set with an employee, by a user of the app

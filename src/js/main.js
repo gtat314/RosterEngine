@@ -312,7 +312,7 @@ RosterEngine.prototype.get_employeesWithoutLeaveForDate = function() {
 
     var employees = this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves );
 
-    this._removeEmployeesThatHadANightShiftTheDayBefore( employees, this.todayCalendarRows.getElement( 0 ).date );
+    this._removeEmployeesThatHadANightShiftTheDayBefore( employees );
 
     return employees.length;
 
@@ -366,6 +366,9 @@ RosterEngine.prototype._allocateEmployeeToTodayShift = function( employee, calen
         'employee_id': employee.id,
         'employee_name': employee.getFullname()
     });
+
+    calendarRow.employee_id = employee.id;
+    calendarRow.employee_name = employee.getFullname();
 
 };
 
@@ -461,11 +464,11 @@ RosterEngine.prototype._findEmployeeBySourceShift = function( todayCalendarRow, 
  * @param {EmployeesCollection} employees 
  * @param {String} currentDate YYYY-MM-DD
  */
-RosterEngine.prototype._removeEmployeesThatHadANightShiftTheDayBefore = function( employees, currentDate ) {
+RosterEngine.prototype._removeEmployeesThatHadANightShiftTheDayBefore = function( employees ) {
 
-    var previousDateString = this._getPreviousDate( currentDate ); console.log( currentDate ); console.log( previousDateString );
+    var previousDateString = this._getPreviousDate( this.todayCalendarRows.getElement( 0 ).date );
 
-    var previousDateCalendarRows = this.olderCalendarRows.getAllByDate( previousDateString ); console.log( previousDateCalendarRows );
+    var previousDateCalendarRows = this.olderCalendarRows.getAllByDate( previousDateString );
 
     for ( var row of previousDateCalendarRows ) {
 
@@ -479,6 +482,192 @@ RosterEngine.prototype._removeEmployeesThatHadANightShiftTheDayBefore = function
 
 };
 
+/**
+ * @method
+ * @private
+ * @param {DB_Calendar} calendarRow 
+ * @returns {DB_Calendar|null}
+ * @description for a calendar row, checks its shift_id, and if the shift belongs to a pond,
+ *      tries to find the pond master shift, and then tries to find the master calendar row in a subset of calendar rows.
+ *      if the given calendar row, and the deduced master calendar row are the same, also return null
+ */
+RosterEngine.prototype._getPondMasterShift = function( calendarRow ) {
+
+    var pondNode = this.shiftPonds.getPondByShiftId( calendarRow.shift_id );
+
+    if ( pondNode === null ) {
+
+        return null;
+
+    }
+
+    var masterShiftId = this.shiftPonds.getMasterShiftIdForPondId( pondNode.pond_id );
+
+    if ( masterShiftId === null ) {
+
+        return null;
+
+    }
+
+    var masterCalendarRow = this.todayCalendarRows.getByShiftId( masterShiftId );
+
+    if ( masterCalendarRow.id === calendarRow.id ) {
+
+        return null;
+
+    }
+
+    return masterCalendarRow;
+
+};
+
+/**
+ * @method
+ * @private
+ * @returns {EmployeesCollection}
+ * @description helper function to make the code more readable
+ */
+RosterEngine.prototype._removeEmployeesWhoAreOnLeaveToday = function() {
+
+    return this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves );
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {CalendarCollection} calendarRows 
+ * @returns {void}
+ */
+RosterEngine.prototype._applyShiftPondRulesToAllTodayCalendarRows = function ( calendarRows ) {
+
+    var row;
+    var pond;
+
+    for ( row of calendarRows ) {
+
+        if ( row.shift_id !== null ) {
+
+            pond = this.shiftPonds.getPondByShiftId( row.shift_id );
+
+            if ( pond !== null ) {
+
+                row._shiftPond_id = pond.id;
+                row._shiftPond_pond_id = pond.pond_id;
+                row._shiftPond_shift_id = pond.shift_id;
+
+            }
+
+        }
+
+    }
+
+
+    var groups = {};
+    var pondId;
+
+    for ( row of calendarRows ) {
+
+        if ( row._shiftPond_pond_id === undefined || row._shiftPond_pond_id === null ) {
+
+            row._shiftPond_slave = null;
+            row._shiftPond_master = null;
+
+        }
+        else {
+
+            pondId = row._shiftPond_pond_id;
+
+            if ( groups[ pondId ] === undefined ) {
+
+                groups[ pondId ] = [];
+
+            }
+
+            groups[ pondId ].push( row );
+
+        }
+
+    }
+
+
+    var group;
+    var minIdRow;
+    var i;
+
+    for ( pondId in groups ) {
+
+        group = groups[ pondId ];
+        minIdRow = null;
+
+        for ( i = 0; i < group.length; i += 1 ) {
+
+            if ( minIdRow === null ) {
+
+                minIdRow = group[ i ];
+
+            }
+            else {
+
+                if ( group[ i ]._shiftPond_id < minIdRow._shiftPond_id ) {
+
+                    minIdRow = group[ i ];
+
+                }
+
+            }
+
+        }
+
+
+        for ( i = 0; i < group.length; i += 1 ) {
+
+            if ( group[ i ] === minIdRow ) {
+
+                group[ i ]._shiftPond_slave = false;
+                group[ i ]._shiftPond_master = true;
+
+            }
+            else {
+
+                group[ i ]._shiftPond_slave = true;
+                group[ i ]._shiftPond_master = false;
+
+            }
+
+        }
+
+    }
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {DB_Calendar} calendarRow 
+ * @param {EmployeesCollection} employees 
+ * @returns {EmployeesCollection|null}
+ * @description load the role data from the role table, using the role_id of the calendar row
+ *              load the pools that can accomodate this role, sorted by their sort_index in ascending order
+ *              If no pools found for this role, no employee can be assigned, so there is no reason to waste any more time with this shift
+ *              load all employees with their data from the employees table, that belong to the pools we deduced previously
+ */
+RosterEngine.prototype._getAssociatedEmployeesForCalendarRow = function( calendarRow, employees ) {
+
+    var role = this.roles.getById( calendarRow.role_id );
+
+    var pools = this.junctionRolePool.getPoolsForRoleId( role.id, this.pools );
+
+    if ( pools === null ) {
+
+        return null;
+
+    }
+
+    return this.junctionEmployeePool.getUniqueEmployeesInPools( pools, employees );
+
+};
+
 
 
 
@@ -487,12 +676,18 @@ RosterEngine.prototype.calculate = function() {
     /**
      * first, keep in the entire scope, only the employees that are not in any kind of leave for today
      */
-    let employees = this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves );
+    let employees = this._removeEmployeesWhoAreOnLeaveToday();
 
     /**
-     * then remove every employee that the day before filled a night shift: 21:00-07:00. this is not a dayoff, it's just an internal rule they have and doesnt count as day off
+     * then remove every employee that the day before filled a night shift: 21:00-07:00.
+     * this is not a dayoff, it's just an internal rule they have and doesnt count as day off
      */
-    this._removeEmployeesThatHadANightShiftTheDayBefore( employees, this.todayCalendarRows.getElement( 0 ).date );
+    this._removeEmployeesThatHadANightShiftTheDayBefore( employees );
+
+    /**
+     * iterate over all today calendar rows, and apply shift pond rules, for easier iteration later
+     */
+    this._applyShiftPondRulesToAllTodayCalendarRows( this.todayCalendarRows );
 
     /**
      * second, iterate over all available shifts for today, and check if any of them is manually set with an employee, by a user of the app
@@ -513,6 +708,13 @@ RosterEngine.prototype.calculate = function() {
      */
     for ( let todayCalendarRow of this.todayCalendarRows ) {
 
+        /**
+         * If this shift belongs to a pond and is not the master of that pond, there is no point in trying to fill it at this point.
+         * Lets fill the other shifts first, necessary or not, and then if there are leftover employees we fill it with them,
+         * otherwise we fill it with the employee that filled the master pond shift, if any
+         */
+        if ( todayCalendarRow.isAPondSlaveShift() === true ) { continue; }
+
         if ( todayCalendarRow.is_necessary === 1 ) {
 
             /**
@@ -522,25 +724,11 @@ RosterEngine.prototype.calculate = function() {
             if ( todayCalendarRow.is_manually_set === 1 ) { continue; }
 
             /**
-             * load the role data from the role table, using the role_id of the calendar row
+             * this one takes a calendar row, and determines from its role_id, the role row, and from there using both junction tables,
+             * determines which employees, from a given subset of employees given, are associated and available for this role
+             * and this calendar row specifically
              */
-            let role = this.roles.getById( todayCalendarRow.role_id );
-
-            /**
-             * load the pools that can accomodate this role, sorted by their sort_index in ascending order
-             */
-            let pools = this.junctionRolePool.getPoolsForRoleId( role.id, this.pools );
-
-            /**
-             * If no pools found for this role, no employee can be assigned,
-             * so there is no reason to waste any more time with this shift
-             */
-            if ( pools === null ) { continue; }
-
-            /**
-             * load all employees with their data from the employees table, that belong to the pools we deduced previously
-             */
-            let associatedEmployees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, employees );
+            let associatedEmployees = this._getAssociatedEmployeesForCalendarRow( todayCalendarRow, employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees
@@ -590,6 +778,13 @@ RosterEngine.prototype.calculate = function() {
      */
     for ( let todayCalendarRow of this.todayCalendarRows ) {
 
+        /**
+         * If this shift belongs to a pond and is not the master of that pond, there is no point in trying to fill it at this point.
+         * Lets fill the other shifts first, necessary or not, and then if there are leftover employees we fill it with them,
+         * otherwise we fill it with the employee that filled the master pond shift, if any
+         */
+        if ( todayCalendarRow.isAPondSlaveShift() === true ) { continue; }
+
         if ( todayCalendarRow.is_necessary !== 1 ) {
 
             /**
@@ -599,25 +794,11 @@ RosterEngine.prototype.calculate = function() {
             if ( todayCalendarRow.is_manually_set === 1 ) { continue; }
 
             /**
-             * load the role data from the role table, using the role_id of the calendar row
+             * this one takes a calendar row, and determines from its role_id, the role row, and from there using both junction tables,
+             * determines which employees, from a given subset of employees given, are associated and available for this role
+             * and this calendar row specifically
              */
-            let role = this.roles.getById( todayCalendarRow.role_id );
-
-            /**
-             * load the pools that can accomodate this role, sorted by their sort_index in ascending order
-             */
-            let pools = this.junctionRolePool.getPoolsForRoleId( role.id, this.pools );
-
-            /**
-             * If no pools found for this role, no employee can be assigned,
-             * so there is no reason to waste any more time with this shift
-             */
-            if ( pools === null ) { continue; }
-
-            /**
-             * load all employees with their data from the employees table, that belong to the pools we deduced previously
-             */
-            let associatedEmployees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, employees );
+            let associatedEmployees = this._getAssociatedEmployeesForCalendarRow( todayCalendarRow, employees );
 
             /**
              * if no such employee has been found, it means that either these pools are still empty of employees
@@ -663,6 +844,85 @@ RosterEngine.prototype.calculate = function() {
 
     }
 
+    /**
+     * final iteration over shifts that have been previously marked as pond slaves
+     */
+    for ( let todayCalendarRow of this.todayCalendarRows ) {
+
+        if ( todayCalendarRow.isAPondSlaveShift() === true ) {
+
+            /**
+             * this one takes a calendar row, and determines from its role_id, the role row, and from there using both junction tables,
+             * determines which employees, from a given subset of employees given, are associated and available for this role
+             * and this calendar row specifically
+             */
+            let associatedEmployees = this._getAssociatedEmployeesForCalendarRow( todayCalendarRow, employees );
+
+            /**
+             * if no such employee has been found, it means that either these pools are still empty of employees
+             * or that the employees of these pools have already been manually assigned beforehand unbeknownst to us
+             * or that all employees have been assigned to the previous iterations
+             * In this scenario, attempt to find the pond master shift for this day, and if there is, and if it's filled, fill with the same employee that filled the master pond calendar row
+             * in any case if no appropriate associated employees are found at this stage, this is a hail mary, so after this bail this calendar row completely
+             */
+            if ( associatedEmployees === null ) {
+
+                let masterCalendarRow = this._getPondMasterShift( todayCalendarRow );
+
+                if ( masterCalendarRow !== null ) {
+
+                    if ( masterCalendarRow.employee_id !== null ) {
+
+                        let employeeToAssign = this.employees.getById( masterCalendarRow.employee_id );
+                        this._allocateEmployeeToTodayShift( employeeToAssign, todayCalendarRow );
+
+                    }
+
+                }
+
+                continue;
+
+            }
+
+            /**
+             * If this shift is a linked shift, and specifically a target shift, meaning it should be automatically filled by the same employee that filled another shift a previous day
+             * try to find which employee was assigned to that source shift, if any
+             * and if such employee exists AND is also among the associatedEmployees we deduced earlier
+             * assign this employee and move on to the next today's shift
+             */
+            if ( todayCalendarRow.isLinkedTargetShift( this.shifts ) === true ) {
+
+                let employeeToAssign = this._findEmployeeBySourceShift( todayCalendarRow, associatedEmployees );
+
+                if ( employeeToAssign !== null ) {
+
+                    this._allocateEmployeeToTodayShift( employeeToAssign, todayCalendarRow );
+                    employees.removeById( employeeToAssign.id );
+
+                    continue;
+
+                }
+
+            }
+
+            /**
+             * we have a winner for this shift! of course for now this is a placeholder, and much more brain power needs to be consumed on this point
+             */
+            let selectedEmployee = associatedEmployees.getElement( 0 );
+
+            /**
+             * we have assign our winner to the shift
+             * and we remove him from the employees collection we have in ram
+             */
+            this._allocateEmployeeToTodayShift( selectedEmployee, todayCalendarRow );
+            employees.removeById( selectedEmployee.id );
+
+        }
+
+    }
+
     console.log( this._allocations );
+    console.log( this.shiftPonds );
+    console.log( this.todayCalendarRows );
 
 };

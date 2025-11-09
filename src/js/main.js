@@ -793,10 +793,6 @@ RosterEngine.prototype._findMasterCalendarRowBySlaveCalendarRow = function( row 
 
 
 
-/**
- * @todo perhaps we should check of the available employees, which ones have already filled rows for today manually and remove them from available employees?
- *          but then what if an employee was set manually in a pond shift, meaning he is typically still available to fill more shifts today?
- */
 RosterEngine.prototype.calculate = function() {
 
     /**

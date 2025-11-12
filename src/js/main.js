@@ -94,23 +94,9 @@ function RosterEngine() {
     /**
      * @property
      * @public
-     * @type {RosterCalendarInput[]}
-     */
-    this.inputs = [];
-
-    /**
-     * @property
-     * @public
      * @type {CalendarCollection}
      */
     this.todayCalendarRows = null;
-
-    /**
-     * @property
-     * @public
-     * @type {RosterCalendar}
-     */
-    this.calendarView = null;
 
     /**
      * @property
@@ -124,36 +110,12 @@ function RosterEngine() {
 /**
  * @method
  * @public
- * @param {RosterCalendar} rosterCalendar 
- * @returns {void}
- */
-RosterEngine.prototype.set_inputs = function( rosterCalendar ) {
-
-    this.inputs = rosterCalendar.getInputs();
-
-    this.calendarView = rosterCalendar;
-
-    this.calendarView.progressModal.setSteps( this.inputs.length );
-    this.calendarView.progressModal.setSubtitle( 'Εντοπίστηκαν 230 βάρδιες' );
-
-    var rows = [];
-
-    for ( var input of this.inputs ) {
-
-        rows.push( input.calendar );
-
-    }
-
-};
-
-/**
- * @method
- * @public
  * @param {Object} todayCalendarRows 
  * @returns {void}
  */
 RosterEngine.prototype.set_todayCalendarRows = function( todayCalendarRows ) {
 
+    this._allocations = [];
     this.todayCalendarRows = new CalendarCollection( todayCalendarRows );
 
 };
@@ -323,9 +285,7 @@ RosterEngine.prototype.get_employeesWithoutLeaveForDate = function() {
  * @public
  * @returns {void}
  */
-RosterEngine.prototype.save = function() {
-
-    this.calendarView.progressModal.setSubtitle( 'Αποθήκευση βαρδιών' );
+RosterEngine.prototype.save = function( callbackFunc ) {
 
     if ( this._allocations.length > 0 ) {
 
@@ -333,17 +293,13 @@ RosterEngine.prototype.save = function() {
             'allocations': this._allocations
         }).call( function(){
 
-            setTimeout( function(){
-
-                window.location.reload();
-
-            }, 500);
+            callbackFunc();
 
         });
 
     } else {
 
-        window.location.reload();
+        callbackFunc();
 
     }
 

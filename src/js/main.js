@@ -100,10 +100,29 @@ function RosterEngine() {
 
     /**
      * @property
+     * @public
+     * @type {DB_Settings}
+     */
+    this.settings = null;
+
+    /**
+     * @property
      * @private
      * @type {Object[]}
      */
     this._allocations = [];
+
+};
+
+/**
+ * @method
+ * @public
+ * @param {Object} settings 
+ * @returns {void}
+ */
+RosterEngine.prototype.set_settings = function( settings ) {
+
+    this.settings = new DB_Settings().hydrate( settings );
 
 };
 
@@ -310,6 +329,102 @@ RosterEngine.prototype.save = function( callbackFunc ) {
 
 /**
  * @method
+ * @private
+ * @returns {void}
+ */
+RosterEngine.prototype._augmentEmployees = function() {
+
+    /**
+     * this block allocates the _hard_shift_weight to all employees
+     */
+    for ( employee of this.employees ) {
+
+        employee._hard_shift_weight = 0;
+
+        var previousCalendarShiftsThisEmployeeHasWorkedFor = this.olderCalendarRows.getAllForEmployeeId( employee.id );
+
+        for ( let calendarRow of previousCalendarShiftsThisEmployeeHasWorkedFor ) {
+
+            if ( calendarRow.isEverydayShift() ) {
+
+                if ( calendarRow.isEveningShift() ) {
+
+                    employee._hard_shift_weight += this.settings.getFloat( 'eveningVariant' );
+
+                } else if ( calendarRow.isNightShift() ) {
+
+                    employee._hard_shift_weight += this.settings.getFloat( 'nightVariant' );
+
+                }
+
+            } else if ( calendarRow.isWeekendShift() ) {
+
+                if ( calendarRow.isMorningShift() ) {
+
+                    employee._hard_shift_weight += this.settings.getFloat( 'morningSkVariant' );
+
+                } else if ( calendarRow.isEveningShift() ) {
+
+                    employee._hard_shift_weight += this.settings.getFloat( 'eveningSkVariant' );
+
+                } else if ( calendarRow.isNightShift() ) {
+
+                    employee._hard_shift_weight += this.settings.getFloat( 'nightSkVariant' );
+
+                }
+
+            } else if ( calendarRow.isHolidayShift() ) {
+
+                if ( calendarRow.isMorningShift() ) {
+
+                    employee._hard_shift_weight += this.settings.getFloat( 'morningHolidayVariant' );
+
+                } else if ( calendarRow.isEveningShift() ) {
+
+                    employee._hard_shift_weight += this.settings.getFloat( 'eveningHolidayVariant' );
+
+                } else if ( calendarRow.isNightShift() ) {
+
+                    employee._hard_shift_weight += this.settings.getFloat( 'nightHolidayVariant' );
+
+                }
+
+            }
+
+        }
+
+    }
+
+    /**
+     * this block allocates the _lastAttendance property to all employees in the format of '2025-11-25 14:00'
+     */
+    for ( employee of this.employees ) {
+
+        employee._lastAttendance = this.olderCalendarRows.getLastAttendanceForEmployee( employee.id );
+
+    }
+
+    /**
+     * this block keeps only the employees that are not on leave today
+     */
+    var availableEmployees = this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves );
+
+    /**
+     * this block removes all employees that the day before were on a night shift
+     */
+    this._removeEmployeesThatHadANightShiftTheDayBefore( availableEmployees );
+
+    /**
+     * this block removes all employees that somehow they were already allocated in a shift today
+     */
+    this._removeEmployeesThatAlreadyFillAShiftToday( availableEmployees );
+
+    return availableEmployees;
+
+};
+
+/**
+ * @method
  * @public
  * @param {CalendarCollection} calendarCollection 
  * @param {EmployeesCollection} employeeCollection
@@ -476,6 +591,109 @@ RosterEngine.prototype._augmentCalendarRows = function( calendarCollection, empl
 /**
  * @method
  * @private
+ * @param {String} startStr YYYY-MM-DD hh:mm
+ * @param {String} endStr YYYY-MM-DD hh:mm
+ * @returns {Number|null} integer
+ */
+RosterEngine.prototype_getHoursBetween = function( startStr, endStr ) {
+
+    // basic type check
+    if ( typeof startStr !== 'string' || typeof endStr !== 'string' ) {
+
+        return null;
+
+    }
+
+    var formatRe = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+
+    if ( formatRe.test( startStr ) === false || formatRe.test( endStr ) === false ) {
+
+        return null;
+
+    }
+
+    function parseDateTime( s ) {
+
+        if ( typeof s !== 'string' ) {
+
+            return null;
+
+        }
+
+        var parts = s.split( ' ' );
+
+        if ( parts.length !== 2 ) {
+
+            return null;
+
+        }
+
+        var dateParts = parts[ 0 ].split( '-' );
+        var timeParts = parts[ 1 ].split( ':' );
+
+        if ( dateParts.length !== 3 || timeParts.length !== 2 ) {
+
+            return null;
+
+        }
+
+        var y = Number( dateParts[ 0 ] );
+        var m = Number( dateParts[ 1 ] );
+        var d = Number( dateParts[ 2 ] );
+        var hh = Number( timeParts[ 0 ] );
+        var mm = Number( timeParts[ 1 ] );
+
+        if ( Number.isInteger( y ) === false || Number.isInteger( m ) === false || Number.isInteger( d ) === false || Number.isInteger( hh ) === false || Number.isInteger( mm ) === false ) {
+
+            return null;
+
+        }
+
+        if ( m < 1 || m > 12 || hh < 0 || hh > 23 || mm < 0 || mm > 59 ) {
+
+            return null;
+
+        }
+
+        // construct local Date (year, monthIndex, day, hours, minutes)
+        var dt = new Date( y, m - 1, d, hh, mm, 0, 0 );
+
+        // verify constructed date matches parts (catches invalid day like 2025-02-30)
+        if ( dt.getFullYear() !== y || dt.getMonth() !== ( m - 1 ) || dt.getDate() !== d || dt.getHours() !== hh || dt.getMinutes() !== mm ) {
+
+            return null;
+
+        }
+
+        return dt;
+
+    }
+
+    var d1 = parseDateTime( startStr );
+    var d2 = parseDateTime( endStr );
+
+    if ( d1 === null || d2 === null ) {
+
+        return null;
+
+    }
+
+    if ( d1.getTime() > d2.getTime() ) {
+
+        return null;
+
+    }
+
+    var diffMs = d2.getTime() - d1.getTime();
+    var hours = Math.floor( diffMs / ( 1000 * 60 * 60 ) );
+
+    return hours;
+
+};
+
+/**
+ * @method
+ * @private
  * @param {DB_Employee} employee 
  * @param {DB_Calendar} calendarRow 
  * @returns {void}
@@ -617,18 +835,6 @@ RosterEngine.prototype._removeEmployeesThatAlreadyFillAShiftToday = function( em
 /**
  * @method
  * @private
- * @returns {EmployeesCollection}
- * @description helper function to make the code more readable
- */
-RosterEngine.prototype._removeEmployeesWhoAreOnLeaveToday = function() {
-
-    return this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves );
-
-};
-
-/**
- * @method
- * @private
  * @param {DB_Calendar} calendarRow 
  * @param {EmployeesCollection} employees 
  * @returns {EmployeesCollection|null}
@@ -756,9 +962,7 @@ RosterEngine.prototype.calculate = function() {
      * whoever is on leave or has worked a night shift the previous day
      * also whoever employee is already assigned, either manually or anyway else, is removed from employees that are available to work today
      */
-    let employees = this._removeEmployeesWhoAreOnLeaveToday();
-    this._removeEmployeesThatHadANightShiftTheDayBefore( employees ); 
-    this._removeEmployeesThatAlreadyFillAShiftToday( employees );
+    let employees = this._augmentEmployees();
 
     /**
      * this is mainly a helper function
@@ -799,7 +1003,44 @@ RosterEngine.prototype.calculate = function() {
     }
 
     /**
-     * BLOCK 4: fill necessay shifts
+     * BLOCK 4: fill necessay shifts that are also night shifts as well, first and foremost
+     * FOR every row in the calendar rows for this day
+     *  IF this row is necessary AND night
+     *      IF today's shift has been manually set, move on to the next calendar row
+     *      IF today's shift is somehow else filled, move on to the next calendar row
+     *      IF today's shift is a pond slave shift, move on to the next calendar row
+     *      find employees that are available today and eligible to fill this role
+     *      IF noone is found, move on to the next calendar row
+     *      plainly select the first random employee to fill this today's shift
+     *      fill this calendar row with this employee
+     *      remove this employee from the available employees we have for filling today's shifts
+     */
+    for ( let todayCalendarRow of this.todayCalendarRows ) {
+
+        if ( todayCalendarRow.isNecessary() && todayCalendarRow.isNightShift() ) {
+
+            if ( todayCalendarRow.isManuallySet() ) { continue; }
+
+            if ( todayCalendarRow.isFilled() ) { continue; }
+
+            if ( todayCalendarRow.isPondSlave() ) { continue; }
+
+            let associatedEmployees = this._getAssociatedEmployeesForCalendarRow( todayCalendarRow, employees );
+
+            if ( associatedEmployees === null ) { continue; }
+
+            let selectedEmployee = associatedEmployees.getElement( 0 );
+
+            this._fillCalendarRowWithEmployee( selectedEmployee, todayCalendarRow );
+
+            employees.removeById( selectedEmployee.id );
+
+        }
+
+    }
+
+    /**
+     * BLOCK 5: fill necessay shifts
      * FOR every row in the calendar rows for this day
      *  IF this row is necessary
      *      IF today's shift has been manually set, move on to the next calendar row
@@ -836,7 +1077,7 @@ RosterEngine.prototype.calculate = function() {
     }
 
     /**
-     * BLOCK 5: fill necessary pond (slave) shifts that their masters have been filled in step 4 or has been manually set before
+     * BLOCK 6: fill necessary pond (slave) shifts that their masters have been filled in step 4 or has been manually set before
      * FOR every row in the calendar rows for this day
      *  IF this row is necessary AND IF today's shift is a pond slave shift
      *      IF today's shift has been manually set, move on to the next calendar row
@@ -870,7 +1111,7 @@ RosterEngine.prototype.calculate = function() {
     }
 
     /**
-     * BLOCK 6: fill unnecessary pond (master) shifts
+     * BLOCK 7: fill unnecessary pond (master) shifts
      * FOR every row in the calendar rows for this day
      *  IF this row is un-necessary AND also a pond master
      *      IF today's shift has been manually set, move on to the next calendar row
@@ -904,7 +1145,7 @@ RosterEngine.prototype.calculate = function() {
     }
 
     /**
-     * BLOCK 7: fill unnecessary pond (slave) shifts
+     * BLOCK 8: fill unnecessary pond (slave) shifts
      * FOR every row in the calendar rows for this day
      *  IF this row is un-necessary AND also a pond slave
      *      IF today's shift has been manually set, move on to the next calendar row
@@ -938,7 +1179,7 @@ RosterEngine.prototype.calculate = function() {
     }
 
     /**
-     * BLOCK 8: fill shifts that belong in a pond and a slave is filled but the master is not.
+     * BLOCK 9: fill shifts that belong in a pond and a slave is filled but the master is not.
      * fill the master and then any other slave shifts in this pond that are also not filled
      * FOR every shift in the calendar rows for this day
      *  IF this shift is a pond slave AND is also somehow filled either manually or automatically
@@ -986,7 +1227,7 @@ RosterEngine.prototype.calculate = function() {
     }
 
     /**
-     * BLOCK 9: fill unnecessary shifts
+     * BLOCK 10: fill unnecessary shifts
      * FOR every row in the calendar rows for this day
      *  IF this row is un-necessary AND also a pond slave
      *      IF today's shift has been manually set, move on to the next calendar row

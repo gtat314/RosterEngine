@@ -17,6 +17,13 @@ function RosterEngine() {
     /**
      * @property
      * @public
+     * @type {CalendarCollection}
+     */
+    this.futureCalendarRows = null;
+
+    /**
+     * @property
+     * @public
      * @type {DepartmentsCollection}
      */
     this.departments = null;
@@ -118,6 +125,12 @@ function RosterEngine() {
      * @type {Object[]}
      */
     this._allocations = [];
+
+};
+
+RosterEngine.prototype.set_futureRows = function ( rows ) {
+
+    this.futureCalendarRows = new CalendarCollection( rows );
 
 };
 
@@ -824,18 +837,14 @@ RosterEngine.prototype._augmentCalendarRows = function( calendarCollection, empl
 
             let uniqueEmployees = this.junctionEmployeePool.getUniqueEmployeesInPools( pools, this.employees );
 
-            if ( uniqueEmployees.length !== 0 ) {
+            for ( let employee of uniqueEmployees ) {
 
-                for ( let employee of uniqueEmployees ) {
+                let result = employeeCollection.getById( employee.id );
 
-                    let result = employeeCollection.getById( employee.id );
+                if ( result !== null ) {
 
-                    if ( result !== null ) {
-
-                        eligibleEmployeesNum++;
-                        eligibleEmployees.push( result );
-
-                    }
+                    eligibleEmployeesNum++;
+                    eligibleEmployees.push( result );
 
                 }
 
@@ -1122,6 +1131,278 @@ RosterEngine.prototype._findMasterCalendarRowBySlaveCalendarRow = function( row 
     }
 
     return this.todayCalendarRows.getById( row._pondMasterRow );
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {DB_Employee} employee 
+ * @returns {Boolean}
+ */
+RosterEngine.prototype._employeeHasExcludedWeekendsFromHisPreferences = function( employee ) {
+
+    var weekendTimetableIds = this.timetables.getWeekendIds();
+
+    var found = false;
+
+    for ( let node of this.employeePreferences ) {
+
+        if ( node.employee_id === employee.id && weekendTimetableIds.includes( node.timetable_id ) ) {
+
+            found = true;
+
+            break;
+
+        }
+
+    }
+
+    // if found it means a preference is found, so he hasnt excluded weekend shifts
+    if ( found === true ) {
+
+        return false;
+
+    } else {
+
+        return true;
+
+    }
+
+};
+
+RosterEngine.prototype._employeeHasExcludedNightsFromHisPreferences = function( employee ) {
+
+    var nightTimetableIds = this.timetables.getNightIds();
+
+    var found = false;
+
+    for ( let node of this.employeePreferences ) {
+
+        if ( node.employee_id === employee.id && nightTimetableIds.includes( node.timetable_id ) ) {
+
+            found = true;
+
+            break;
+
+        }
+
+    }
+
+    // if found it means a preference is found, so he hasnt excluded weekend shifts
+    if ( found === true ) {
+
+        return false;
+
+    } else {
+
+        return true;
+
+    }
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {DB_Calendar} calendar_row 
+ * @returns {PoolsCollection}
+ */
+RosterEngine.prototype._getPoolsForCalendarRow = function( calendar_row ) {
+
+    var role = this.roles.getById( calendar_row.id );
+
+    if ( role === null ) {
+        
+        return new PoolsCollection([]);
+    
+    }
+
+    return this.junctionRolePool.getPoolsForRoleId( role.id, this.pools );
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {DB_Employee} employee 
+ * @param {DB_Pool} pool 
+ * @returns {Boolean}
+ */
+RosterEngine.prototype._employeeHasPool = function( employee, pool ) {
+
+    if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
+
+        return true;
+
+    }
+
+    return false;
+
+};
+
+/**
+ * 
+ * @param {DB_Employee} employee 
+ * @param {DB_Calendar} shift_calendar_row 
+ * @param {CalendarCollection} mixed_calendar_rows 
+ * @returns {Boolean}
+ */
+RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift_calendar_row, mixed_calendar_rows ) {
+
+    // 1.a
+    if ( employee.isOnLeavedForDate( this.leaves, shift_calendar_row.date ) ) {
+        
+        return false;
+    
+    }
+
+    // 1.b
+    if ( employee.isOnDayOffAfterNightShiftForDate( shift_calendar_row.date, mixed_calendar_rows ) ) {
+        
+        return false;
+    
+    }
+
+    // 2
+    if ( shift_calendar_row.isWeekendShift() ) {
+
+        // 2.1
+        if ( this._employeeHasExcludedWeekendsFromHisPreferences( employee ) ) {
+
+            // 2.1.1
+            return false;
+
+        }
+
+    }
+
+    // 3
+    var employee_viability = false;
+
+    var shift_calendar_row_pools = this._getPoolsForCalendarRow( shift_calendar_row );
+
+    // 4
+    for ( let pool of shift_calendar_row_pools ) {
+
+        // 4.1
+        if ( this._employeeHasPool( employee, pool ) ) {
+
+            // 4.1.1
+            employee_viability = true;
+
+            // 4.1.2
+            break;
+
+        }
+
+    }
+
+    // 5
+    if ( employee_viability === false ) {
+
+        // 5.1
+        return false;
+
+    }
+
+    // 6
+    for ( let row of mixed_calendar_rows ) {
+
+        // 6.1
+        if ( row.date === shift_calendar_row.date ) {
+
+            // 6.1.1
+            if ( row.employee_id === employee.id ) {
+
+                // 6.1.1.1
+                return false;
+
+            }
+
+        }
+
+        // 6.2
+        if ( row.date === shift_calendar_row.getNextDayDate() ) {
+
+            // 6.2.1
+            if ( row.employee_id === employee.id ) {
+
+                // 6.2.1.1
+                if ( lib_getHoursBetween( shift_calendar_row.getShiftEndDatetime(), row.getShiftBeginDatetime() ) < 11 ) {
+
+                    // 6.2.1.1.1
+                    return false;
+
+                }
+
+            }
+
+        }
+
+        // 6.3
+        if ( row.date === shift_calendar_row.getPreviousDayDate() ) {
+
+            // 6.3.1
+            if ( row.employee_id === employee.id ) {
+
+                // 6.3.1.1
+                if ( lib_getHoursBetween( row.getShiftEndDatetime(), shift_calendar_row.getShiftBeginDatetime() ) < 11 ) {
+
+                    // 6.3.1.1.1
+                    return false;
+
+                }
+
+            }
+
+        }
+
+    }
+
+    // 7
+    if ( shift_calendar_row.isNightShift() ) {
+
+        // 7.1
+        if ( this._employeeHasExcludedNightsFromHisPreferences( employee ) ) {
+
+            // 7.1.1
+            return false;
+
+        }
+
+        // 7.2
+        for ( let row of mixed_calendar_rows ) {
+
+            // 7.2.1
+            if ( row.date > shift_calendar_row.getPreviousFridayDate() ) {
+
+                // 7.2.1.1
+                if ( row.date < shift_calendar_row.getNextSaturdayDate() ) {
+
+                    // 7.2.1.1.1
+                    if ( row.isNightShift() ) {
+
+                        // 7.2.1.1.1.1
+                        if ( row.employee_id === employee.id ) {
+
+                            // 7.2.1.1.1.1.1
+                            return false;
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    }
+
+    // 8
+    return true;
 
 };
 

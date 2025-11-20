@@ -1212,151 +1212,151 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
     }
 
     // 1.b
-    // if ( employee.isOnDayOffAfterNightShiftForDate( shift_calendar_row.date, mixed_calendar_rows ) ) {
+    if ( employee.isOnDayOffAfterNightShiftForDate( shift_calendar_row.date, mixed_calendar_rows ) ) {
         
-    //     return false;
+        return false;
     
-    // }
+    }
 
-    // // 2
-    // if ( shift_calendar_row.isWeekendShift() ) {
+    // 2
+    if ( shift_calendar_row.isWeekendShift() ) {
 
-    //     // 2.1
-    //     if ( this._employeeHasExcludedWeekendsFromHisPreferences( employee ) ) {
+        // 2.1
+        if ( this._employeeHasExcludedWeekendsFromHisPreferences( employee ) ) {
 
-    //         // 2.1.1
-    //         return false;
+            // 2.1.1
+            return false;
 
-    //     }
+        }
 
-    // }
+    }
 
-    // // 3
-    // var employee_viability = false;
+    // 3
+    var employee_viability = false;
 
-    // var shift_calendar_row_pools = this._getPoolsForCalendarRow( shift_calendar_row );
+    var shift_calendar_row_pools = this._getPoolsForCalendarRow( shift_calendar_row );
 
-    // // 4
-    // for ( let pool of shift_calendar_row_pools ) {
+    // 4
+    for ( let pool of shift_calendar_row_pools ) {
 
-    //     // 4.1
-    //     if ( this._employeeHasPool( employee, pool ) ) {
+        // 4.1
+        if ( this._employeeHasPool( employee, pool ) ) {
 
-    //         // 4.1.1
-    //         employee_viability = true;
+            // 4.1.1
+            employee_viability = true;
 
-    //         // 4.1.2
-    //         break;
+            // 4.1.2
+            break;
 
-    //     }
+        }
 
-    // }
+    }
 
-    // // 5
-    // if ( employee_viability === false ) {
+    // 5
+    if ( employee_viability === false ) {
 
-    //     // 5.1
-    //     return false;
+        // 5.1
+        return false;
 
-    // }
+    }
 
-    // // 6
-    // for ( let row of mixed_calendar_rows ) {
+    // 6
+    for ( let row of mixed_calendar_rows ) {
 
-    //     // 6.1
-    //     if ( row.date === shift_calendar_row.date ) {
+        // 6.1
+        if ( row.date === shift_calendar_row.date ) {
 
-    //         // 6.1.1
-    //         if ( row.employee_id === employee.id ) {
+            // 6.1.1
+            if ( row.employee_id === employee.id ) {
 
-    //             // 6.1.1.1
-    //             return false;
+                // 6.1.1.1
+                return false;
 
-    //         }
+            }
 
-    //     }
+        }
 
-    //     // 6.2
-    //     if ( row.date === shift_calendar_row.getNextDayDate() ) {
+        // 6.2
+        if ( row.date === shift_calendar_row.getNextDayDate() ) {
 
-    //         // 6.2.1
-    //         if ( row.employee_id === employee.id ) {
+            // 6.2.1
+            if ( row.employee_id === employee.id ) {
 
-    //             // 6.2.1.1
-    //             if ( lib_getHoursBetween( shift_calendar_row.getShiftEndDatetime(), row.getShiftBeginDatetime() ) < 11 ) {
+                // 6.2.1.1
+                if ( lib_getHoursBetween( shift_calendar_row.getShiftEndDatetime(), row.getShiftBeginDatetime() ) < 11 ) {
 
-    //                 // 6.2.1.1.1
-    //                 return false;
+                    // 6.2.1.1.1
+                    return false;
 
-    //             }
+                }
 
-    //         }
+            }
 
-    //     }
+        }
 
-    //     // 6.3
-    //     if ( row.date === shift_calendar_row.getPreviousDayDate() ) {
+        // 6.3
+        if ( row.date === shift_calendar_row.getPreviousDayDate() ) {
 
-    //         // 6.3.1
-    //         if ( row.employee_id === employee.id ) {
+            // 6.3.1
+            if ( row.employee_id === employee.id ) {
 
-    //             // 6.3.1.1
-    //             if ( lib_getHoursBetween( row.getShiftEndDatetime(), shift_calendar_row.getShiftBeginDatetime() ) < 11 ) {
+                // 6.3.1.1
+                if ( lib_getHoursBetween( row.getShiftEndDatetime(), shift_calendar_row.getShiftBeginDatetime() ) < 11 ) {
 
-    //                 // 6.3.1.1.1
-    //                 return false;
+                    // 6.3.1.1.1
+                    return false;
 
-    //             }
+                }
 
-    //         }
+            }
 
-    //     }
+        }
 
-    // }
+    }
 
-    // // 7
-    // if ( shift_calendar_row.isNightShift() ) {
+    // 7
+    if ( shift_calendar_row.isNightShift() ) {
 
-    //     // 7.1
-    //     if ( this._employeeHasExcludedNightsFromHisPreferences( employee ) ) {
+        // 7.1
+        if ( this._employeeHasExcludedNightsFromHisPreferences( employee ) ) {
 
-    //         // 7.1.1
-    //         return false;
+            // 7.1.1
+            return false;
 
-    //     }
+        }
 
-    //     // 7.2
-    //     for ( let row of mixed_calendar_rows ) {
+        // 7.2
+        for ( let row of mixed_calendar_rows ) {
 
-    //         // 7.2.1
-    //         if ( row.date > shift_calendar_row.getPreviousFridayDate() ) {
+            // 7.2.1
+            if ( row.date > shift_calendar_row.getPreviousFridayDate() ) {
 
-    //             // 7.2.1.1
-    //             if ( row.date < shift_calendar_row.getNextSaturdayDate() ) {
+                // 7.2.1.1
+                if ( row.date < shift_calendar_row.getNextSaturdayDate() ) {
 
-    //                 // 7.2.1.1.1
-    //                 if ( row.isNightShift() ) {
+                    // 7.2.1.1.1
+                    if ( row.isNightShift() ) {
 
-    //                     // 7.2.1.1.1.1
-    //                     if ( row.employee_id === employee.id ) {
+                        // 7.2.1.1.1.1
+                        if ( row.employee_id === employee.id ) {
 
-    //                         // 7.2.1.1.1.1.1
-    //                         return false;
+                            // 7.2.1.1.1.1.1
+                            return false;
 
-    //                     }
+                        }
 
-    //                 }
+                    }
 
-    //             }
+                }
 
-    //         }
+            }
 
-    //     }
+        }
 
-    // }
+    }
 
-    // // 8
-    // return true;
+    // 8
+    return true;
 
 };
 

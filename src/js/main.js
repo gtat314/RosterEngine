@@ -527,11 +527,10 @@ RosterEngine.prototype._remove_necessary_night_shift_employees_from_the_start_of
  * @private
  * @description if employee given is null, returns false
  * @param {DB_Employee} employee 
- * @param {DB_Calendar} calendar_row 
- * @param {EmployeesCollection} availableEmployees 
+ * @param {DB_Calendar} calendar_row
  * @returns {Boolean}
  */
-RosterEngine.prototype._is_the_employee_necessary_for_this_shift = function( employee, calendar_row, availableEmployees ) {
+RosterEngine.prototype._is_employee_necessary_for_this_shift = function( employee, calendar_row ) {
 
     if ( employee === null ) {
 
@@ -539,24 +538,69 @@ RosterEngine.prototype._is_the_employee_necessary_for_this_shift = function( emp
 
     }
 
-    let all_available_employees_that_can_fill_this_role = this._getEligibleEmployeesForRole( calendar_row.role_id, availableEmployees );
-
-    let employee_found = all_available_employees_that_can_fill_this_role.getById( employee.id );
-
     // 1
-    if ( employee_found !== null ) {
+    if ( calendar_row._eligibleEmployees.getById( employee.id ) === null ) {
 
-        // 1.1
-        if ( all_available_employees_that_can_fill_this_role.length <= this.shift_low_availability_threshold_number ) {
+        return false;
 
-            // 1.1.1
-            return true;
+    }
+
+    if ( calendar_row._eligibleEmployees.length <= this.shift_low_availability_threshold_number ) {
+
+        return true;
+
+    }
+
+    return false;
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {DB_Employee} employee 
+ * @param {String} target_date YYYY-MM-DD
+ * @param {CalendarCollection} calendar_rows 
+ * @returns {Boolean}
+ */
+RosterEngine.prototype._is_the_employee_necessary_for_this_day = function( employee, target_date, calendar_rows ) {
+
+    if ( ! ( employee instanceof DB_Employee ) ) {
+
+        return false;
+
+    }
+
+    if ( target_date === null ) {
+
+        return false;
+
+    }
+
+    if ( ! ( calendar_rows instanceof CalendarCollection ) || calendar_rows.length === 0 ) {
+
+        return false;
+
+    }
+
+    for ( let row in calendar_rows ) {
+
+        if ( row.date === target_date ) {
+
+            if ( row.isNecessary() ) {
+
+                if ( this._is_employee_necessary_for_this_shift( employee, row ) ) {
+
+                    return true;
+
+                }
+
+            }
 
         }
 
     }
 
-    //2
     return false;
 
 };
@@ -581,7 +625,7 @@ RosterEngine.prototype._is_employee_necessary_tonight = function( employee, toda
             if ( row.isNotFilled() ) {
 
                 // 1.1.1.1
-                if ( this._is_the_employee_necessary_for_this_shift( employee, row, availableEmployees ) ) {
+                if ( this._is_employee_necessary_for_this_shift( employee, row, availableEmployees ) ) {
 
                     // 1.1.1.1.1
                     return true;
@@ -1401,6 +1445,128 @@ RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( empl
 
 };
 
+/**
+ * @method
+ * @private
+ * @param {DB_Calendar} calendar_row 
+ * @returns {DB_Employee|null}
+ */
+RosterEngine.prototype._assign_hard_shift = function( calendar_row ) {
+
+    let willing_employees_keep = [];
+    let unwilling_employees_keep = [];
+
+    for ( let employee of calendar_row._eligibleEmployees ) {
+
+        if ( employee.prefersThisShift( calendar_row, this.shifts, this.employeePreferences ) ) {
+
+            willing_employees_keep.push( employee );
+
+        } else {
+
+            unwilling_employees_keep.push( employee );
+
+        }
+
+    }
+
+    let willing_employees = new EmployeesCollection( willing_employees_keep );
+    let unwilling_employees = new EmployeesCollection( unwilling_employees_keep );
+
+    let role_pools_by_preference = [];
+
+    let calendar_row_pools = this._getPoolsForCalendarRow( calendar_row );
+
+    for ( let pool of calendar_row_pools ) {
+
+        let pool_members_keep = [];
+
+        for ( let employee of willing_employees ) {
+
+            if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
+
+                pool_members_keep.push( employee );
+
+            }
+
+        }
+
+        let pool_members = new EmployeesCollection( pool_members_keep );
+
+        role_pools_by_preference.push( pool_members );
+
+    }
+
+    for ( let pool_by_preference of role_pools_by_preference ) {
+
+        if ( pool_by_preference.length === 0 ) { continue; }
+
+        pool_by_preference.sort_byHardShiftWeightAsc();
+
+        let selected_employee = pool_by_preference.getElement( 0 );
+
+        for ( let employee of pool_by_preference ) {
+
+            if ( employee.inveteracy_coefficient < selected_employee.inveteracy_coefficient ) {
+
+                selected_employee = employee;
+
+            }
+
+        }
+
+        return selected_employee;
+
+    }
+
+    let role_pools_by_preference2 = [];
+
+    for ( let pool of calendar_row_pools ) {
+
+        let pool_members_keep = [];
+
+        for ( let employee of unwilling_employees ) {
+
+            if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
+
+                pool_members_keep.push( employee );
+
+            }
+
+        }
+
+        let pool_members = new EmployeesCollection( pool_members_keep );
+
+        role_pools_by_preference2.push( pool_members );
+
+    }
+
+    for ( let pool_by_preference of role_pools_by_preference2 ) {
+
+        if ( pool_by_preference.length === 0 ) { continue; }
+
+        pool_by_preference.sort_byHardShiftWeightAsc();
+
+        let selected_employee = pool_by_preference.getElement( 0 );
+
+        for ( let employee of pool_by_preference ) {
+
+            if ( employee.inveteracy_coefficient < selected_employee.inveteracy_coefficient ) {
+
+                selected_employee = employee;
+
+            }
+
+        }
+
+        return selected_employee;
+
+    }
+
+    return null;
+
+}
+
 
 
 
@@ -1443,16 +1609,144 @@ RosterEngine.prototype.calculate = function() {
 
             let employeeThatFilledTheSourceShift = this._findEmployeeThatFilledTheSourceShiftUsingTargetShift( todayCalendarRow );
 
-            if ( this._employeeExistsInAvailableEmployees( employeeThatFilledTheSourceShift, employees ) ) {
+            if ( employeeThatFilledTheSourceShift === null ) { continue; }
+
+            if ( todayCalendarRow._eligibleEmployees.getById( employeeThatFilledTheSourceShift.id ) ) {
 
                 this._fillCalendarRowWithEmployee( employeeThatFilledTheSourceShift, todayCalendarRow );
-                employees.removeById( employeeThatFilledTheSourceShift.id );
+
+                this.todayCalendarRows.removeEmployeeFromEligible( employeeThatFilledTheSourceShift.id );
 
             }
 
         }
 
     }
+
+
+
+
+    /**
+     * use all employees because the future shifts don’t care who you have available today this calculation needs to be done again now
+     * because we used some employees when filling the linked shifts of today
+     */
+    this._calculate_and_store_eligibility_on_rows( this.employees, mixed_calendar_rows, this.todayCalendarRows.getElement( 0 ).date );
+
+
+
+
+    /**
+     * fill future linked targets and linked shifts that are targets
+     * assign employee to link target if there is an employee assigned to the source the employee that gets added to a future shift
+     * should not be removed from the available employees for today
+     */
+    for ( let row of this.futureCalendarRows ) {
+
+        if ( row.isLinkedTargetShift() ) {
+
+            if ( row.isManuallySet() ) { continue; }
+
+            if ( row.isFilled() ) { continue; }
+
+            let sourceRow = mixed_calendar_rows.getSourceByTarget( row, this.shifts );
+
+            if ( sourceRow === null ) { continue; }
+
+            if ( sourceRow.isFilled() ) {
+
+                if ( row._eligibleEmployees.getById( sourceRow.employee_id ) !== null ) {
+
+                    row.employee_id = sourceRow.employee_id;
+                    row.employee_name = sourceRow.employee_name;
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+
+
+    /**
+     * use all employees because the future shifts don’t care who you have available today this calculation needs to be done again now
+     * because we used some employees when filling the linked shifts of today
+     */
+    this._calculate_and_store_eligibility_on_rows( this.employees, mixed_calendar_rows, this.todayCalendarRows.getElement( 0 ).date );
+
+
+
+
+    {
+
+        let toKeep = [];
+
+        for ( let row of this.futureCalendarRows ) {
+
+            if ( row.isLinkedSourceShift() && row.isNightShift() ) {
+
+                toKeep.push( row );
+
+            }
+
+        }
+
+        let future_linked_source_nightshifts = new CalendarCollection( toKeep );
+
+        future_linked_source_nightshifts.sortByEligibleEmployeesAsc();
+
+        while ( future_linked_source_nightshifts.length > 0 ) {
+
+            let assignedEmployee = this._assign_hard_shift( future_linked_source_nightshifts.getElement( 0 ) );
+
+            if ( assignedEmployee !== null ) {
+
+                future_linked_source_nightshifts.getElement( 0 ).employee_id = assignedEmployee.id;
+                future_linked_source_nightshifts.getElement( 0 ).employee_name = assignedEmployee.getFullname();
+
+                future_linked_source_nightshifts.removeEmployeeFromEligible( assignedEmployee.id );
+
+            }
+
+            future_linked_source_nightshifts.removeById( future_linked_source_nightshifts.getElement( 0 ).id );
+
+            future_linked_source_nightshifts.sortByEligibleEmployeesAsc();
+
+        }
+
+    }
+
+    for ( let row of this.futureCalendarRows ) {
+
+        if ( row.isLinkedTargetShift() ) {
+
+            if ( row.isManuallySet() ) { continue; }
+
+            if ( row.isFilled() ) { continue; }
+
+            let sourceRow = mixed_calendar_rows.getSourceByTarget( row, this.shifts );
+
+            if ( sourceRow === null ) { continue; }
+
+            if ( sourceRow.isFilled() ) {
+
+                if ( row._eligibleEmployees.getById( sourceRow.employee_id ) !== null ) {
+
+                    row.employee_id = sourceRow.employee_id;
+                    row.employee_name = sourceRow.employee_name;
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+
 
     /**
      * BLOCK 4: fill necessay shifts that are also night shifts as well, first and foremost

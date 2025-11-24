@@ -354,7 +354,7 @@ RosterEngine.prototype.save = function( callbackFunc ) {
  * @param {EmployeesCollection} availableEmployees
  * @returns {DB_Employee|null}
  */
-RosterEngine.prototype._assign_employee = function( todayCalendarRow, availableEmployees ) {
+RosterEngine.prototype._assign_employee_old = function( todayCalendarRow, availableEmployees ) {
 
     // 1
     let eligible_employees = this._getEligibleEmployeesForRole( todayCalendarRow.role_id, availableEmployees ); //console.log( structuredClone( eligible_employees ) );
@@ -479,6 +479,74 @@ RosterEngine.prototype._assign_employee = function( todayCalendarRow, availableE
     }
 
     return null;
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {DB_Calendar} calendar_row 
+ * @param {CalendarCollection} calendar_row_collection
+ * @returns {DB_Employee|null}
+ */
+RosterEngine.prototype._assign_employee = function( calendar_row, calendar_row_collection ) {
+
+    if ( calendar_row.isEverydayShift() && calendar_row.isMorningShift() ) {
+
+        return this._assign_easy_shift( calendar_row );
+
+    } else {
+
+        if ( calendar_row.hasDayoffRules() ) {
+
+            let copy_of_eligibles_keep = [];
+
+            for ( let eligible_employee of calendar_row._eligibleEmployees ) {
+
+                copy_of_eligibles_keep.push( eligible_employee );
+
+            }
+
+            let copy_of_eligibles = new EmployeesCollection( copy_of_eligibles_keep );
+
+            for ( let eligible_employee of calendar_row._eligibleEmployees ) {
+
+                // @future_dick na valoume kai to days total
+                if (
+                    this._is_the_employee_necessary_for_this_day(
+                        eligible_employee,
+                        this._getNextDateByDays( calendar_row.date, calendar_row._days_after ),
+                        calendar_row_collection
+                    )
+                ) {
+
+                    calendar_row._eligibleEmployees.removeById( eligible_employee.id );
+
+                }
+
+            }
+
+            let found_employee = this._assign_hard_shift( calendar_row );
+
+            if ( found_employee !== null ) {
+
+                return found_employee;
+
+            } else {
+
+                calendar_row._eligibleEmployees = copy_of_eligibles;
+
+                return this._assign_hard_shift( calendar_row );
+
+            }
+
+        } else {
+
+            return this._assign_hard_shift( calendar_row );
+
+        }
+
+    }
 
 };
 
@@ -768,6 +836,8 @@ RosterEngine.prototype._augmentCalendarRows = function ( calendarCollection, emp
         row._linkSourceRow = null;
         row._eligibleEmployeesNum = 0;
         row._eligibleEmployees = null;
+        row._days_after = null;
+        row._days_total = null;
 
         if ( row.shift_id !== null ) {
 
@@ -776,6 +846,8 @@ RosterEngine.prototype._augmentCalendarRows = function ( calendarCollection, emp
             if ( shift !== null ) {
 
                 row._isALinkedShift = this.shifts.isLinkedShift( row.shift_id );
+                row._days_after = shift.days_after;
+                row._days_total = shift.days_total;
 
             }
 
@@ -896,6 +968,29 @@ RosterEngine.prototype._getPreviousDate = function( dateString ) {
     var date = new Date( dateString );
 
     date.setDate( date.getDate() - 1 );
+
+    var year = date.getFullYear();
+    var month = String( date.getMonth() + 1 ).padStart( 2, '0' );
+    var day = String( date.getDate() ).padStart( 2, '0' );
+
+    var formatted = year + '-' + month + '-' + day;
+
+    return formatted;
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {String} dateString YYYY-MM-DD
+ * @param {Number} daysNum integer
+ * @returns {String} YYYY-MM-DD
+ */
+RosterEngine.prototype._getNextDateByDays = function( dateString, daysNum ) {
+
+    var date = new Date( dateString );
+
+    date.setDate( date.getDate() + daysNum );
 
     var year = date.getFullYear();
     var month = String( date.getMonth() + 1 ).padStart( 2, '0' );
@@ -1565,7 +1660,217 @@ RosterEngine.prototype._assign_hard_shift = function( calendar_row ) {
 
     return null;
 
-}
+};
+
+/**
+ * @method
+ * @private
+ * @param {DB_Calendar} calendar_row 
+ * @returns {DB_Employee|null}
+ */
+RosterEngine.prototype._assign_easy_shift = function( calendar_row ) {
+
+    let willing_employees_keep = [];
+    let unwilling_employees_keep = [];
+
+    for ( let employee of calendar_row._eligibleEmployees ) {
+
+        if ( employee.prefersThisShift( calendar_row, this.shifts, this.employeePreferences ) ) {
+
+            willing_employees_keep.push( employee );
+
+        } else {
+
+            unwilling_employees_keep.push( employee );
+
+        }
+
+    }
+
+    let willing_employees = new EmployeesCollection( willing_employees_keep );
+    let unwilling_employees = new EmployeesCollection( unwilling_employees_keep );
+
+    let role_pools_by_preference = [];
+
+    let calendar_row_pools = this._getPoolsForCalendarRow( calendar_row );
+
+    for ( let pool of calendar_row_pools ) {
+
+        let pool_members_keep = [];
+
+        for ( let employee of willing_employees ) {
+
+            if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
+
+                pool_members_keep.push( employee );
+
+            }
+
+        }
+
+        let pool_members = new EmployeesCollection( pool_members_keep );
+
+        role_pools_by_preference.push( pool_members );
+
+    }
+
+    for ( let pool_by_preference of role_pools_by_preference ) {
+
+        if ( pool_by_preference.length === 0 ) { continue; }
+
+        pool_by_preference.sort_byHardShiftWeightDesc();
+
+        let selected_employee = pool_by_preference.getElement( 0 );
+
+        for ( let employee of pool_by_preference ) {
+
+            if ( employee.inveteracy_coefficient > selected_employee.inveteracy_coefficient ) {
+
+                selected_employee = employee;
+
+            }
+
+        }
+
+        return selected_employee;
+
+    }
+
+    let role_pools_by_preference2 = [];
+
+    for ( let pool of calendar_row_pools ) {
+
+        let pool_members_keep = [];
+
+        for ( let employee of unwilling_employees ) {
+
+            if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
+
+                pool_members_keep.push( employee );
+
+            }
+
+        }
+
+        let pool_members = new EmployeesCollection( pool_members_keep );
+
+        role_pools_by_preference2.push( pool_members );
+
+    }
+
+    for ( let pool_by_preference of role_pools_by_preference2 ) {
+
+        if ( pool_by_preference.length === 0 ) { continue; }
+
+        pool_by_preference.sort_byHardShiftWeightDesc();
+
+        let selected_employee = pool_by_preference.getElement( 0 );
+
+        for ( let employee of pool_by_preference ) {
+
+            if ( employee.inveteracy_coefficient > selected_employee.inveteracy_coefficient ) {
+
+                selected_employee = employee;
+
+            }
+
+        }
+
+        return selected_employee;
+
+    }
+
+    return null;
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {EmployeesCollection} employees 
+ * @param {CalendarCollection} calendar_rows 
+ * @returns {void}
+ */
+RosterEngine.prototype._autofill_future_nightshifts = function( employees, calendar_rows ) {
+
+    let future_nightshifts_keep = [];
+
+    for ( let row of calendar_rows ) {
+
+        if ( row.isNightShift() && row.isNecessary() && row.date < this.todayCalendarRows.getElement( 0 ).getNextSaturdayDate() && row.date > this.todayCalendarRows.getElement( 0 ).date ) {
+
+            if ( row.isNotFilled() ) {
+
+                future_nightshifts_keep.push( row );
+
+            }
+
+        }
+
+    }
+
+    let future_nightshifts = new CalendarCollection( future_nightshifts_keep );
+
+    this._calculate_and_store_eligibility_on_rows( employees, calendar_rows, this.todayCalendarRows.getElement( 0 ).date );
+
+    let are_we_done = false;
+
+    while ( are_we_done === false ) {
+
+        let shift_to_fill = future_nightshifts.getElement( 0 );
+
+        for ( let night_shift of future_nightshifts ) {
+
+            if ( night_shift._eligibleEmployees.length < shift_to_fill._eligibleEmployees.length ) {
+
+                shift_to_fill = night_shift;
+
+            } else {
+
+                if ( night_shift._eligibleEmployees.length === shift_to_fill._eligibleEmployees.length ) {
+
+                    if ( night_shift.date > shift_to_fill.date ) {
+
+                        shift_to_fill = night_shift;
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        let shift_to_fill_employee = this._assign_employee( shift_to_fill, calendar_rows );
+
+        if ( shift_to_fill_employee !== null ) {
+
+            shift_to_fill.employee_id   = shift_to_fill_employee.id;
+            shift_to_fill.employee_name = shift_to_fill_employee.getFullname();
+
+        }
+
+        if ( shift_to_fill_employee !== null ) {
+
+            for ( let night_shift of future_nightshifts ) {
+
+                night_shift._eligibleEmployees.removeById( night_shift.id );
+
+            }
+
+        }
+
+        future_nightshifts.removeById( shift_to_fill.id );
+
+        if ( future_nightshifts.length === 0 ) {
+
+            are_we_done = true;
+
+        }
+
+    }
+
+};
 
 
 
@@ -1748,6 +2053,66 @@ RosterEngine.prototype.calculate = function() {
 
 
 
+    // 10
+    this._autofill_future_nightshifts( this.employees, mixed_calendar_rows );
+
+
+
+
+    // 11
+    {
+
+        let today_necessary_night_shift_rows_keep = []
+
+        for ( let row of this.todayCalendarRows ) {
+
+            if ( row.isNecessary() && row.isNightShift() && row.isNotFilled() && row.isPondSlave() === false ) {
+
+                for ( let employee of row._eligibleEmployees ) {
+
+                    if ( this._can_employee_fill_this_shift( employee, row, mixed_calendar_rows ) === false ) {
+
+                        row._eligibleEmployees.removeById( employee.id );
+
+                    }
+
+                }
+
+                today_necessary_night_shift_rows_keep.push( row );
+
+            }
+
+        }
+
+        let today_necessary_night_shift_rows = new CalendarCollection( today_necessary_night_shift_rows_keep );
+
+        today_necessary_night_shift_rows.sortByEligibleEmployeesAsc();
+
+        while ( today_necessary_night_shift_rows.length > 0 ) {
+
+            let employee_to_fill_row = this._assign_employee( today_necessary_night_shift_rows.getElement( 0 ), this.futureCalendarRows );
+
+            this._fillCalendarRowWithEmployee( employee_to_fill_row, today_necessary_night_shift_rows.getElement( 0 ) );
+
+            today_necessary_night_shift_rows.removeById( today_necessary_night_shift_rows.getElement( 0 ).id );
+
+            for ( let row of today_necessary_night_shift_rows ) {
+
+                if ( employee_to_fill_row === null ) { break; }
+
+                row._eligibleEmployees.removeById( employee_to_fill_row.id );
+
+            }
+
+            today_necessary_night_shift_rows.sortByEligibleEmployeesAsc();
+
+        }
+
+    }
+
+
+
+
     /**
      * BLOCK 4: fill necessay shifts that are also night shifts as well, first and foremost
      * FOR every row in the calendar rows for this day
@@ -1771,7 +2136,7 @@ RosterEngine.prototype.calculate = function() {
 
             if ( todayCalendarRow.isPondSlave() ) { continue; }
 
-            let selectedEmployee = this._assign_employee( todayCalendarRow, employees );
+            let selectedEmployee = this._assign_employee( todayCalendarRow, this.futureCalendarRows );
 
             if ( selectedEmployee !== null ) {
 
@@ -1808,7 +2173,7 @@ RosterEngine.prototype.calculate = function() {
 
             if ( todayCalendarRow.isPondSlave() ) { continue; }
 
-            let selectedEmployee = this._assign_employee( todayCalendarRow, employees );
+            let selectedEmployee = this._assign_employee( todayCalendarRow, this.futureCalendarRows );
 
             if ( selectedEmployee !== null ) {
 
@@ -1876,7 +2241,7 @@ RosterEngine.prototype.calculate = function() {
 
             if ( todayCalendarRow.isFilled() ) { continue; }
 
-            let selectedEmployee = this._assign_employee( todayCalendarRow, employees );
+            let selectedEmployee = this._assign_employee( todayCalendarRow, this.futureCalendarRows );
 
             if ( selectedEmployee !== null ) {
 
@@ -1990,7 +2355,7 @@ RosterEngine.prototype.calculate = function() {
 
         if ( todayCalendarRow.isFilled() ) { continue; }
 
-        let selectedEmployee = this._assign_employee( todayCalendarRow, employees );
+        let selectedEmployee = this._assign_employee( todayCalendarRow, this.futureCalendarRows );
 
         if ( selectedEmployee !== null ) {
 

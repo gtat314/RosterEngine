@@ -9,6 +9,13 @@ function RosterEngine() {
 
     /**
      * @property
+     * @private
+     * @type {CalendarCollection}
+     */
+    this.mixedCalendarRows = null;
+
+    /**
+     * @property
      * @public
      * @type {CalendarCollection}
      */
@@ -352,141 +359,6 @@ RosterEngine.prototype.save = function( callbackFunc ) {
 /**
  * @method
  * @private
- * @param {DB_Calendar} todayCalendarRow 
- * @param {EmployeesCollection} availableEmployees
- * @returns {DB_Employee|null}
- */
-RosterEngine.prototype._assign_employee_old = function( todayCalendarRow, availableEmployees ) {
-
-    // 1
-    let eligible_employees = this._getEligibleEmployeesForRole( todayCalendarRow.role_id, availableEmployees ); //console.log( structuredClone( eligible_employees ) );
-
-    if ( eligible_employees.length === 0 ) { return null; }
-
-    // 2
-    eligible_employees.removeEmployeesWorkedLast11Hours( todayCalendarRow, this.olderCalendarRows ); //console.log( structuredClone( eligible_employees ) );
-
-    if ( eligible_employees.length === 0 ) { return null; }
-
-    // 3
-    if ( todayCalendarRow.isMorningShift() && todayCalendarRow.isEverydayShift() ) {
-
-        // 3.1
-        eligible_employees.sort_byHardShiftWeightDesc();
-
-        // 3.2
-        let eligible_employees_by_pool_priority = [];
-
-        // 3.3
-        let pools_for_this_role = this.junctionRolePool.getPoolsForRoleId( todayCalendarRow.role_id, this.pools );
-
-        for ( let pool of pools_for_this_role ) {
-
-            // 3.3.1
-            let eligible_employees_belonging_to_this_pool = this.junctionEmployeePool.getEmployeesForPool( pool, eligible_employees );
-
-            // 3.3.2
-            eligible_employees_by_pool_priority.push( eligible_employees_belonging_to_this_pool );
-
-        }
-
-        // 3.4
-        for ( let element of eligible_employees_by_pool_priority ) {
-
-            // 3.4.1
-            let my_employees = this._remove_necessary_night_shift_employees_from_the_start_of_list( element, this.todayCalendarRows, availableEmployees );
-
-            // 3.4.2
-            if ( my_employees.length > 0 ) {
-
-                let employee_with_the_highest_hard_shift_weight = my_employees.getElement( 0 );
-
-                for ( let i = 1 ; i < my_employees.length ; i++ ) { //console.log( my_employees.getElement( i ) ); console.log( i );
-
-                    if ( employee_with_the_highest_hard_shift_weight.inveteracy_coefficient < my_employees.getElement( i ).inveteracy_coefficient ) {
-
-                        if ( this._is_employee_necessary_tonight( my_employees.getElement( i ), this.todayCalendarRows, availableEmployees ) ) {
-
-                            employee_with_the_highest_hard_shift_weight = my_employees.getElement( i );
-
-                        }
-
-                    }
-
-                }
-
-                return employee_with_the_highest_hard_shift_weight;
-
-            }
-
-        }
-
-        eligible_employees_by_pool_priority = [];
-
-        pools_for_this_role = this.junctionRolePool.getPoolsForRoleId( todayCalendarRow.role_id, this.pools );
-
-        for ( let pool of pools_for_this_role ) {
-
-            let eligible_employees_belonging_to_this_pool = this.junctionEmployeePool.getEmployeesForPool( pool, eligible_employees );
-
-            eligible_employees_by_pool_priority.push( eligible_employees_belonging_to_this_pool );
-
-        }
-
-        for ( let element of eligible_employees_by_pool_priority ) {
-
-            let my_employees = element;
-
-            if ( my_employees.length > 0 ) {
-
-                let employee_with_the_highest_hard_shift_weight = my_employees.getElement( 0 );
-
-                for ( let i = 1 ; i < my_employees.length ; i++ ) {
-
-                    if ( employee_with_the_highest_hard_shift_weight.inveteracy_coefficient < my_employees.getElement( i ).inveteracy_coefficient ) {
-
-                        employee_with_the_highest_hard_shift_weight = my_employees.getElement( i );
-
-                    }
-
-                }
-
-                return employee_with_the_highest_hard_shift_weight;
-
-            }
-
-        }
-
-    // 4
-    } else {
-
-        // 4.1
-        if ( todayCalendarRow.isHolidayShift() === false ) {
-
-            // 4.1.1
-            let willing_employees = eligible_employees.getWillingEmployeesForThisShift( todayCalendarRow, this.employeePreferences, this.shifts, this.timetables );
-
-            // 4.1.2
-            let unwilling_employees = eligible_employees.getUnwillingEmployeesForThisShift( todayCalendarRow, this.employeePreferences, this.shifts, this.timetables );
-
-            // 4.1.3
-            for ( let willing_employee of willing_employees ) {
-
-                
-
-            }
-
-        } 
-
-    }
-
-    return null;
-
-};
-
-/**
- * @method
- * @private
  * @param {DB_Calendar} calendar_row 
  * @param {CalendarCollection} calendar_row_collection
  * @returns {DB_Employee|null}
@@ -501,15 +373,13 @@ RosterEngine.prototype._assign_employee = function( calendar_row, calendar_row_c
 
         if ( calendar_row.hasDayoffRules() ) {
 
-            let copy_of_eligibles_keep = [];
+            let copy_of_eligibles = new EmployeesCollection([]);
 
             for ( let eligible_employee of calendar_row._eligibleEmployees ) {
 
-                copy_of_eligibles_keep.push( eligible_employee );
+                copy_of_eligibles.push( eligible_employee );
 
             }
-
-            let copy_of_eligibles = new EmployeesCollection( copy_of_eligibles_keep );
 
             for ( let eligible_employee of calendar_row._eligibleEmployees ) {
 
@@ -549,46 +419,6 @@ RosterEngine.prototype._assign_employee = function( calendar_row, calendar_row_c
         }
 
     }
-
-};
-
-/**
- * @method
- * @private
- * @param {EmployeesCollection} employeeList 
- * @param {CalendarCollection} todayCalendarRows
- * @param {EmployeesCollection} employeeList 
- * @returns {EmployeesCollection|null}
- */
-RosterEngine.prototype._remove_necessary_night_shift_employees_from_the_start_of_list = function( employeeList, todayCalendarRows, availableEmployees ) {
-
-    if ( employeeList === null ) {
-
-        return new EmployeesCollection([]);
-        
-    }
-
-    let employee_the_first_of_his_name = employeeList.getElement( 0 );
-
-    if ( employeeList.length === 0 ) {
-
-        return employeeList;
-
-    }
-
-    // 1
-    if ( this._is_employee_necessary_tonight( employee_the_first_of_his_name, todayCalendarRows, availableEmployees ) ) {
-
-        // 1.1
-        employeeList.removeById( employee_the_first_of_his_name.id );
-
-        // 1.2
-        return this._remove_necessary_night_shift_employees_from_the_start_of_list( employeeList, todayCalendarRows, availableEmployees );
-
-    }
-
-    // 2
-    return employeeList;
 
 };
 
@@ -675,139 +505,6 @@ RosterEngine.prototype._is_the_employee_necessary_for_this_day = function( emplo
 
 };
 
-/**
- * @method
- * @private
- * @param {DB_Employee} employee 
- * @param {CalendarCollection} todayCalendarRows 
- * @param {EmployeesCollection} availableEmployees 
- * @returns {Boolean}
- */
-RosterEngine.prototype._is_employee_necessary_tonight = function( employee, todayCalendarRows, availableEmployees ) {
-
-    // 1
-    for ( let row of todayCalendarRows ) {
-
-        // 1.1
-        if ( row.isNightShift() ) {
-
-            // 1.1.1
-            if ( row.isNotFilled() ) {
-
-                // 1.1.1.1
-                if ( this._is_employee_necessary_for_this_shift( employee, row, availableEmployees ) ) {
-
-                    // 1.1.1.1.1
-                    return true;
-
-                }
-
-            }
-
-        }
-
-    }
-
-    // 2
-    return false;
-
-};
-
-/**
- * @method
- * @private
- * @returns {void}
- */
-RosterEngine.prototype._augmentEmployees = function() {
-
-    /**
-     * this block allocates the _hard_shift_weight to all employees
-     */
-    for ( let employee of this.employees ) {
-
-        employee._hard_shift_weight = 0;
-
-        var previousCalendarShiftsThisEmployeeHasWorkedFor = this.olderCalendarRows.getAllForEmployeeId( employee.id );
-
-        for ( let calendarRow of previousCalendarShiftsThisEmployeeHasWorkedFor ) {
-
-            if ( calendarRow.isEverydayShift() ) {
-
-                if ( calendarRow.isEveningShift() ) {
-
-                    employee._hard_shift_weight += this.settings.getFloat( 'eveningVariant' );
-
-                } else if ( calendarRow.isNightShift() ) {
-
-                    employee._hard_shift_weight += this.settings.getFloat( 'nightVariant' );
-
-                }
-
-            } else if ( calendarRow.isWeekendShift() ) {
-
-                if ( calendarRow.isMorningShift() ) {
-
-                    employee._hard_shift_weight += this.settings.getFloat( 'morningSkVariant' );
-
-                } else if ( calendarRow.isEveningShift() ) {
-
-                    employee._hard_shift_weight += this.settings.getFloat( 'eveningSkVariant' );
-
-                } else if ( calendarRow.isNightShift() ) {
-
-                    employee._hard_shift_weight += this.settings.getFloat( 'nightSkVariant' );
-
-                }
-
-            } else if ( calendarRow.isHolidayShift() ) {
-
-                if ( calendarRow.isMorningShift() ) {
-
-                    employee._hard_shift_weight += this.settings.getFloat( 'morningHolidayVariant' );
-
-                } else if ( calendarRow.isEveningShift() ) {
-
-                    employee._hard_shift_weight += this.settings.getFloat( 'eveningHolidayVariant' );
-
-                } else if ( calendarRow.isNightShift() ) {
-
-                    employee._hard_shift_weight += this.settings.getFloat( 'nightHolidayVariant' );
-
-                }
-
-            }
-
-        }
-
-    }
-
-    /**
-     * this block allocates the _lastAttendance property to all employees in the format of '2025-11-25 14:00'
-     */
-    for ( let employee of this.employees ) {
-
-        employee._lastAttendance = this.olderCalendarRows.getLastAttendanceForEmployee( employee.id );
-
-    } //console.log( structuredClone( this.employees ) );
-
-    /**
-     * this block keeps only the employees that are not on leave today
-     */
-    var availableEmployees = this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves ); //console.log( structuredClone( this.employees ) );
-
-    /**
-     * this block removes all employees that the day before were on a night shift
-     */
-    this._removeEmployeesThatHadANightShiftTheDayBefore( availableEmployees );
-
-    /**
-     * this block removes all employees that somehow they were already allocated in a shift today
-     */
-    this._removeEmployeesThatAlreadyFillAShiftToday( availableEmployees );
-
-    return availableEmployees;
-
-};
 
 
 
@@ -821,24 +518,27 @@ RosterEngine.prototype._augmentEmployees = function() {
  */
 RosterEngine.prototype._augmentCalendarRows = function ( calendarCollection, employeeCollection ) {
 
+    let cutoff_date = this.todayCalendarRows.getElement( 0 ).getPreviousDateByXDays( 6 );
+    let dictionary_ponds = {};
+
     for ( let row of calendarCollection ) {
 
-        if ( row.date < this.todayCalendarRows.getElement( 0 ).getPreviousDateByXDays( 6 ) ) {
+        if ( row.date < cutoff_date ) {
 
             continue;
 
         }
 
-        row._isAPondShift = false;
-        row._isAPondMasterShift = false;
-        row._pondMasterRow = null;
-        row._pond = null;
-        row._isALinkedShift = false;
-        row._isALinkedTargetShift = false;
-        row._linkSourceRow = null;
-        row._eligibleEmployees = null;
-        row._days_after = null;
-        row._days_total = null;
+        row._isAPondShift           = false;
+        row._isAPondMasterShift     = false;
+        row._pondMasterRow          = null;
+        row._pond                   = null;
+        row._isALinkedShift         = false;
+        row._isALinkedTargetShift   = false;
+        row._linkSourceRow          = null;
+        row._eligibleEmployees      = null;
+        row._days_after             = null;
+        row._days_total             = null;
 
         if ( row.shift_id !== null ) {
 
@@ -846,55 +546,56 @@ RosterEngine.prototype._augmentCalendarRows = function ( calendarCollection, emp
 
             if ( shift !== null ) {
 
-                row._isALinkedShift = this.shifts.isLinkedShift( row.shift_id );
+                row._isALinkedShift = this.shifts.isLinkedShift( shift.id );
                 row._days_after = shift.days_after;
                 row._days_total = shift.days_total;
 
-            }
+                if ( row._isALinkedShift ) {
 
-        }
+                    row._isALinkedTargetShift = this.shifts.isLinkedTargetShift( shift.id );
 
-        if ( row._isALinkedShift ) {
+                    if ( row._isALinkedTargetShift ) {
 
-            row._isALinkedTargetShift = this.shifts.isLinkedTargetShift( row.shift_id );
+                        let sourceShift = this.shifts.getById( shift.propagate_from_shift_id );
 
-        }
+                        if ( sourceShift !== null ) {
 
-        if ( row._isALinkedShift && row._isALinkedTargetShift ) {
+                            let sourceCalendarRow = this._getMostRecentCalendarShift( row.date, sourceShift.id );
 
-            let targetShift = this.shifts.getById( row.shift_id );
+                            if ( sourceCalendarRow !== null ) {
 
-            if ( targetShift !== null ) {
+                                row._linkSourceRow = sourceCalendarRow.id;
 
-                let sourceShift = this.shifts.getById( targetShift.propagate_from_shift_id );
+                            }
 
-                if ( sourceShift === null ) {
-
-                    let sourceCalendarRow = this._getMostRecentCalendarShift( row.date, sourceShift.id );
-
-                    if ( sourceCalendarRow === null ) {
-
-                        row._linkSourceRow = sourceCalendarRow.id;
+                        }
 
                     }
 
-                };
+                }
 
-            }
-
-        }
-
-        if ( row.shift_id !== null ) {
-
-            let shift = this.shifts.getById( row.shift_id );
-
-            if ( shift !== null ) {
-
-                let pondRow = this.shiftPonds.getPondByShiftId( row.shift_id );
-
-                if ( pondRow !== null ) {
+                if ( row.shift_pond !== null ) {
 
                     row._isAPondShift = true;
+                    row._pond = row.shift_pond;
+                    row._isAPondMasterShift = this.shiftPonds.isPondMasterShift( shift.id );
+
+                    if ( row._isAPondMasterShift === false ) {
+
+                        row._pondMasterRow = this._getMasterCalendarRowIdBySlaveCalendarRow( row );
+
+                    }
+
+                    if ( dictionary_ponds.hasOwnProperty( row.shift_pond ) ) {
+
+                        dictionary_ponds[ row.shift_pond ].push( row );
+
+                    } else {
+
+                        dictionary_ponds[ row.shift_pond ] = [];
+                        dictionary_ponds[ row.shift_pond ].push( row );
+
+                    }
 
                 }
 
@@ -902,27 +603,36 @@ RosterEngine.prototype._augmentCalendarRows = function ( calendarCollection, emp
 
         }
 
-        if ( row._isAPondShift ) {
+    }
 
-            row._isAPondMasterShift = this.shiftPonds.isPondMasterShift( row.shift_id );
+    for ( let pond in dictionary_ponds ) {
 
-        }
+        let pond_master_row;
+        let master_necessity = false;
+        let slave_necessity = false;
 
-        if ( row._isAPondShift ) {
+        for ( let row of pond ) {
 
-            let pondRow = this.shiftPonds.getPondByShiftId( row.shift_id );
+            if ( row._isAPondMasterShift ) {
 
-            if ( pondRow !== null ) {
+                pond_master_row = row;
+                master_necessity = row.is_necessary;
 
-                row._pond = pondRow.pond_id;
+            } else {
+
+                if ( row.is_necessary === 1 ) {
+
+                    slave_necessity = true;
+
+                }
 
             }
 
         }
 
-        if ( row._isAPondShift && row._isAPondMasterShift === false ) {
+        if ( master_necessity === false && slave_necessity === true ) {
 
-            row._pondMasterRow = this._getMasterCalendarRowIdBySlaveCalendarRow( row );
+            pond_master_row.is_necessary = 1;
 
         }
 
@@ -939,10 +649,11 @@ RosterEngine.prototype._augmentCalendarRows = function ( calendarCollection, emp
  * @param {DB_Calendar} calendarRow 
  * @returns {void}
  */
-RosterEngine.prototype._fillCalendarRowWithEmployee = function( employee, calendarRow ) {
+RosterEngine.prototype._allocate = function( employee, calendarRow ) {
 
     if ( employee === null ) {
 
+        console.warn( 'allocate has received a null employee' );
         return;
 
     }
@@ -1045,6 +756,8 @@ RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = f
 
     var targetShift = this.shifts.getById( row.shift_id );
 
+    if ( targetShift === null ) { return null; }
+
     if ( targetShift.propagate_from_shift_id === null ) { return null; }
 
     var sourceShift = this.shifts.getById( targetShift.propagate_from_shift_id );
@@ -1079,86 +792,6 @@ RosterEngine.prototype._removeEmployeesThatHadANightShiftTheDayBefore = function
         }
 
     }
-
-};
-
-/**
- * @method
- * @private
- * @param {EmployeesCollection} employees 
- * @returns {void}
- */
-RosterEngine.prototype._removeEmployeesThatAlreadyFillAShiftToday = function( employees ) {
-
-    for ( var row of this.todayCalendarRows ) {
-
-        if ( row.employee_id !== null ) {
-
-            employees.removeById( row.employee_id );
-
-        }
-
-    }
-
-};
-
-/**
- * @method
- * @private
- * @param {Number} role_id 
- * @param {EmployeesCollection} employees 
- * @returns {EmployeesCollection}
- * @description load the role data from the role table, using the role_id of the calendar row
- *              load the pools that can accomodate this role, sorted by their sort_index in ascending order
- *              If no pools found for this role, no employee can be assigned, so there is no reason to waste any more time with this shift
- *              load all employees with their data from the employees table, that belong to the pools we deduced previously
- */
-RosterEngine.prototype._getEligibleEmployeesForRole = function( role_id, employees ) {
-
-    var role = this.roles.getById( role_id );
-
-    if ( role === null ) {
-        
-        return new EmployeesCollection([]);
-    
-    }
-
-    var pools = this.junctionRolePool.getPoolsForRoleId( role.id, this.pools );
-
-    if ( pools.length === 0 ) {
-        
-        return new EmployeesCollection([]);
-    
-    }
-
-    return this.junctionEmployeePool.getUniqueEmployeesInPools( pools, employees );
-
-};
-
-/**
- * @method
- * @private
- * @param {DB_Employee} employee 
- * @param {EmployeesCollection} employees 
- * @returns {Boolean}
- */
-RosterEngine.prototype._employeeExistsInAvailableEmployees = function( employee, employees ) {
-
-    if ( employee === null ) {
-
-        return false;
-
-    }
-
-    var result = employees.getById( employee.id );
-
-    if ( result === null ) {
-
-        return false;
-
-    }
-
-    return true;
 
 };
 
@@ -1528,19 +1161,17 @@ RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( empl
 
         }
 
-        let eligibleEmployees = [];
+        row._eligibleEmployees = new EmployeesCollection([]);
 
         for ( let employee of employees_collection ) {
 
             if ( this._can_employee_fill_this_shift( employee, row, rows_collection ) ) {
 
-                eligibleEmployees.push( employee );
+                row._eligibleEmployees.push( employee );
 
             }
 
         }
-
-        row._eligibleEmployees = new EmployeesCollection( eligibleEmployees );
 
     }
 
@@ -1556,25 +1187,22 @@ RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( empl
  */
 RosterEngine.prototype._assign_hard_shift = function( calendar_row ) {
 
-    let willing_employees_keep = [];
-    let unwilling_employees_keep = [];
+    let willing_employees = new EmployeesCollection([]);
+    let unwilling_employees = new EmployeesCollection([]);
 
     for ( let employee of calendar_row._eligibleEmployees ) {
 
         if ( employee.prefersThisShift( calendar_row, this.shifts, this.employeePreferences ) ) {
 
-            willing_employees_keep.push( employee );
+            willing_employees.push( employee );
 
         } else {
 
-            unwilling_employees_keep.push( employee );
+            unwilling_employees.push( employee );
 
         }
 
     }
-
-    let willing_employees = new EmployeesCollection( willing_employees_keep );
-    let unwilling_employees = new EmployeesCollection( unwilling_employees_keep );
 
     let role_pools_by_preference = [];
 
@@ -1582,19 +1210,17 @@ RosterEngine.prototype._assign_hard_shift = function( calendar_row ) {
 
     for ( let pool of calendar_row_pools ) {
 
-        let pool_members_keep = [];
+        let pool_members = new EmployeesCollection([]);
 
         for ( let employee of willing_employees ) {
 
             if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
 
-                pool_members_keep.push( employee );
+                pool_members.push( employee );
 
             }
 
         }
-
-        let pool_members = new EmployeesCollection( pool_members_keep );
 
         role_pools_by_preference.push( pool_members );
 
@@ -1626,19 +1252,17 @@ RosterEngine.prototype._assign_hard_shift = function( calendar_row ) {
 
     for ( let pool of calendar_row_pools ) {
 
-        let pool_members_keep = [];
+        let pool_members = new EmployeesCollection([]);
 
         for ( let employee of unwilling_employees ) {
 
             if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
 
-                pool_members_keep.push( employee );
+                pool_members.push( employee );
 
             }
 
         }
-
-        let pool_members = new EmployeesCollection( pool_members_keep );
 
         role_pools_by_preference2.push( pool_members );
 
@@ -1678,25 +1302,22 @@ RosterEngine.prototype._assign_hard_shift = function( calendar_row ) {
  */
 RosterEngine.prototype._assign_easy_shift = function( calendar_row ) {
 
-    let willing_employees_keep = [];
-    let unwilling_employees_keep = [];
+    let willing_employees = new EmployeesCollection([]);
+    let unwilling_employees = new EmployeesCollection([]);
 
     for ( let employee of calendar_row._eligibleEmployees ) {
 
         if ( employee.prefersThisShift( calendar_row, this.shifts, this.employeePreferences ) ) {
 
-            willing_employees_keep.push( employee );
+            willing_employees.push( employee );
 
         } else {
 
-            unwilling_employees_keep.push( employee );
+            unwilling_employees.push( employee );
 
         }
 
     }
-
-    let willing_employees = new EmployeesCollection( willing_employees_keep );
-    let unwilling_employees = new EmployeesCollection( unwilling_employees_keep );
 
     let role_pools_by_preference = [];
 
@@ -1704,19 +1325,17 @@ RosterEngine.prototype._assign_easy_shift = function( calendar_row ) {
 
     for ( let pool of calendar_row_pools ) {
 
-        let pool_members_keep = [];
+        let pool_members = new EmployeesCollection([]);
 
         for ( let employee of willing_employees ) {
 
             if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
 
-                pool_members_keep.push( employee );
+                pool_members.push( employee );
 
             }
 
         }
-
-        let pool_members = new EmployeesCollection( pool_members_keep );
 
         role_pools_by_preference.push( pool_members );
 
@@ -1748,19 +1367,17 @@ RosterEngine.prototype._assign_easy_shift = function( calendar_row ) {
 
     for ( let pool of calendar_row_pools ) {
 
-        let pool_members_keep = [];
+        let pool_members = new EmployeesCollection([]);
 
         for ( let employee of unwilling_employees ) {
 
             if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
 
-                pool_members_keep.push( employee );
+                pool_members.push( employee );
 
             }
 
         }
-
-        let pool_members = new EmployeesCollection( pool_members_keep );
 
         role_pools_by_preference2.push( pool_members );
 
@@ -1809,7 +1426,7 @@ RosterEngine.prototype._autofill_future_nightshifts = function( employees, calen
 
     }
 
-    let future_nightshifts_keep = [];
+    let future_nightshifts = new CalendarCollection([]);
 
     for ( let row of calendar_rows ) {
 
@@ -1817,7 +1434,7 @@ RosterEngine.prototype._autofill_future_nightshifts = function( employees, calen
 
             if ( row.isNotFilled() ) {
 
-                future_nightshifts_keep.push( row );
+                future_nightshifts.push( row );
 
             }
 
@@ -1825,9 +1442,7 @@ RosterEngine.prototype._autofill_future_nightshifts = function( employees, calen
 
     }
 
-    let future_nightshifts = new CalendarCollection( future_nightshifts_keep );
-
-    this._calculate_and_store_eligibility_on_rows( employees, calendar_rows, this.todayCalendarRows.getElement( 0 ).date );
+    // this._calculate_and_store_eligibility_on_rows( employees, calendar_rows, this.todayCalendarRows.getElement( 0 ).date );
 
     let are_we_done = false;
 
@@ -1893,38 +1508,30 @@ RosterEngine.prototype._autofill_future_nightshifts = function( employees, calen
 
 RosterEngine.prototype.calculate = function() {
 
+    /**
+     * combine today and future and older calendar rows into one collection
+     */
     let today_future_calendar_rows = this.todayCalendarRows.concatCollection( this.futureCalendarRows );
-    let mixed_calendar_rows = today_future_calendar_rows.concatCollection( this.olderCalendarRows );
+    this.mixedCalendarRows = today_future_calendar_rows.concatCollection( this.olderCalendarRows );
 
     /**
-     * this block doesnt change, we get rid from available employees,
-     * whoever is on leave or has worked a night shift the previous day
-     * also whoever employee is already assigned, either manually or anyway else, is removed from employees that are available to work today
+     * attaches extra properties to calendar rows needed for calculating when they needd to be filled
+     * and how the eligibility is calculated
      */
-    let employees = this._augmentEmployees(); //console.log( structuredClone( employees ) );
+    this._augmentCalendarRows( this.mixedCalendarRows, this.employees ); //console.log( structuredClone( this.mixedCalendarRows ) );
 
+    
+    
+    
     /**
-     * this is mainly a helper function
-     * but among other things it also assigns a number of eligible employees for each shift and sorts the today's rows in an ascending order
-     */
-    this._augmentCalendarRows( mixed_calendar_rows, this.employees ); //console.log( structuredClone( mixed_calendar_rows ) );
-
-    /**
-     * BLOCK 1, 2, 3: handle the linked target shifts
-     * FOR every row in the calendar rows for this day
-     *  IF this row corresponds to a shift that is a linked target one
-     *      IF today's shift has been manually set, move on to the next calendar row
-     *      IF today's shift is somehow else filled, move on to the next calendar row
-     *      find the employee the filled the linked source shift
-     *      IF this employee exists in the employees subset we deduced earlier by discrading the ones on leave
-     *          fill this calendar row with this employee
-     *          remove this employee from the available employees we have for filling today's shifts
+     * @description for every calendar row in today's calendar rows, if the row is a linked target shift,
+     * and it is not manually set or already filled, find the employee that filled the source shift,
+     * if that employee is eligible for this target shift, fill the target shift with that employee
+     * and remove that employee from the eligible employees for today's shifts
      */
     for ( let todayCalendarRow of this.todayCalendarRows ) { //console.log( 'run' );
 
         if ( todayCalendarRow.isLinkedTargetShift() ) {  //console.log( 'run1' );
-
-            if ( todayCalendarRow.isManuallySet() ) { continue; }
 
             if ( todayCalendarRow.isFilled() ) { continue; }
 
@@ -1932,11 +1539,13 @@ RosterEngine.prototype.calculate = function() {
 
             if ( employeeThatFilledTheSourceShift === null ) { continue; } //console.log( 'run3' ); console.log( structuredClone( todayCalendarRow ) );
 
+            /**
+             * @todo se periptwsi pou diamartyrithoun tha vgaloume to eligibility check,
+             * epeidi twra gia na kanei allocate ton employee pou eixe mpei sto source, prepei na einai eligible sto target
+             */
             if ( todayCalendarRow._eligibleEmployees.getById( employeeThatFilledTheSourceShift.id ) ) {
 
-                this._fillCalendarRowWithEmployee( employeeThatFilledTheSourceShift, todayCalendarRow );
-
-                this.todayCalendarRows.removeEmployeeFromEligible( employeeThatFilledTheSourceShift.id );
+                this._allocate( employeeThatFilledTheSourceShift, todayCalendarRow );
 
             }
 
@@ -1948,33 +1557,32 @@ RosterEngine.prototype.calculate = function() {
 
 
     /**
-     * use all employees because the future shifts don’t care who you have available today this calculation needs to be done again now
-     * because we used some employees when filling the linked shifts of today
+     * epeidi mpikan sta linked shifts ypalliloi prepei na afairethoun apo ta eligibility twn ypoloipwn tis imeras
      */
-    this._calculate_and_store_eligibility_on_rows( this.employees, mixed_calendar_rows, this.todayCalendarRows.getElement( 0 ).date );
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
 
 
 
 
     /**
-     * fill future linked targets and linked shifts that are targets
-     * assign employee to link target if there is an employee assigned to the source the employee that gets added to a future shift
-     * should not be removed from the available employees for today
+     * gemizei sti mnimi kai oxi sto allocation ta mellontika linked shifts pou einai targets kai pou exoun source gemismeno
      */
     for ( let row of this.futureCalendarRows ) {
 
         if ( row.isLinkedTargetShift() ) {
 
-            if ( row.isManuallySet() ) { continue; }
-
             if ( row.isFilled() ) { continue; }
 
-            let sourceRow = mixed_calendar_rows.getSourceByTarget( row, this.shifts );
+            let sourceRow = this.mixedCalendarRows.getSourceByTarget( row, this.shifts );
 
             if ( sourceRow === null ) { continue; }
 
             if ( sourceRow.isFilled() ) {
 
+                /**
+                 * @todo se periptwsi pou diamartyrithoun tha vgaloume to eligibility check,
+                 * epeidi twra gia na kanei allocate ton employee pou eixe mpei sto source, prepei na einai eligible sto target
+                 */
                 if ( row._eligibleEmployees.getById( sourceRow.employee_id ) !== null ) {
 
                     row.employee_id = sourceRow.employee_id;
@@ -1992,29 +1600,36 @@ RosterEngine.prototype.calculate = function() {
 
 
     /**
-     * use all employees because the future shifts don’t care who you have available today this calculation needs to be done again now
-     * because we used some employees when filling the linked shifts of today
+     * exw valei se mellontika night shifts ypallilous pou mporoun na mpoun mia fora tin ebdomada
+     * opote vevaiwnmoume oti den tha ksanaboun
      */
-    this._calculate_and_store_eligibility_on_rows( this.employees, mixed_calendar_rows, this.todayCalendarRows.getElement( 0 ).date );
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
 
 
 
 
+    /**
+     * gemizei ta future linked source night shifts ta opoia exoun ksemeinei exontas proigoumenws gemisei ta linked target
+     * pairnontas ypopsin to ti targets exoun mpei idi apo ta yprxonta sources wste na tirisoume to eligibility
+     * gt mporei kapoioi na exoun mpei se target shift pou einai nyxta kai na mi mporoun na kanoun alli nyxta
+     * 
+     * sto proigoumeno block gemisame future target shifts. kapoia apo auta mporei na itan night shifts
+     * opote se auto to block kanoume iterate sta future source night shifts, gia na doume se poia mporoume na valoume ypallilo
+     * o opoios den exei mpei se kapoio night shift sto proigoumeno block
+     */
     {
 
-        let toKeep = [];
+        let future_linked_source_nightshifts = new CalendarCollection([]);
 
         for ( let row of this.futureCalendarRows ) {
 
             if ( row.isLinkedSourceShift() && row.isNightShift() ) {
 
-                toKeep.push( row );
+                future_linked_source_nightshifts.push( row );
 
             }
 
         }
-
-        let future_linked_source_nightshifts = new CalendarCollection( toKeep );
 
         future_linked_source_nightshifts.sortByEligibleEmployeesAsc();
 
@@ -2027,8 +1642,6 @@ RosterEngine.prototype.calculate = function() {
                 future_linked_source_nightshifts.getElement( 0 ).employee_id = assignedEmployee.id;
                 future_linked_source_nightshifts.getElement( 0 ).employee_name = assignedEmployee.getFullname();
 
-                future_linked_source_nightshifts.removeEmployeeFromEligible( assignedEmployee.id );
-
             }
 
             future_linked_source_nightshifts.removeById( future_linked_source_nightshifts.getElement( 0 ).id );
@@ -2039,6 +1652,18 @@ RosterEngine.prototype.calculate = function() {
 
     }
 
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
+
+
+
+
+    /**
+     * sto proigoumeno step valame future source night shifts
+     * se auto to step vazoume ta future target shifts gia na sevastoume ta sources pou molis topothetisame
+     * wste otan valoume ta ypoloipa night shifts na lavei ypopsi o algorithmos oti oi ypalliloi pou tha pane se auta ta targets tha einai apasxolimenoi gia autes tis meres
+     * to step auto einai redenduncy gia asfaleia
+     * alla voithaei kai se kati: ?
+     */
     for ( let row of this.futureCalendarRows ) {
 
         if ( row.isLinkedTargetShift() ) {
@@ -2047,7 +1672,7 @@ RosterEngine.prototype.calculate = function() {
 
             if ( row.isFilled() ) { continue; }
 
-            let sourceRow = mixed_calendar_rows.getSourceByTarget( row, this.shifts );
+            let sourceRow = this.mixedCalendarRows.getSourceByTarget( row, this.shifts );
 
             if ( sourceRow === null ) { continue; }
 
@@ -2066,46 +1691,40 @@ RosterEngine.prototype.calculate = function() {
 
     }
 
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
 
 
 
-    // 10
-    this._autofill_future_nightshifts( this.employees, mixed_calendar_rows );
+
+    /**
+     * opoio future night shifts exei ksemeinei apo ta proigoumena 3 steps, gemizei edw
+     * pairnontas ypopsi ta eligibilities
+     */
+    this._autofill_future_nightshifts( this.employees, this.mixedCalendarRows );
+
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
 
 
 
 
     // 11
     /**
-     * BLOCK 4: fill necessay shifts that are also night shifts as well, first and foremost
-     * FOR every row in the calendar rows for this day
-     *  IF this row is necessary AND night
-     *      IF today's shift has been manually set, move on to the next calendar row
-     *      IF today's shift is somehow else filled, move on to the next calendar row
-     *      IF today's shift is a pond slave shift, move on to the next calendar row
-     *      find employees that are available today and eligible to fill this role
-     *      IF noone is found, move on to the next calendar row
-     *      plainly select the first random employee to fill this today's shift
-     *      fill this calendar row with this employee
-     *      remove this employee from the available employees we have for filling today's shifts
+     * gemizw necessary night unfilled non pond slave shifts gia simera
+     * xrisimopoioume to isPondSlave gt theloume na gemisoume ola osa den einai se ponds KAI an einai se pond mono tous pond masters
      */
     {
 
-        let today_necessary_night_shift_rows_keep = []
+        let today_necessary_night_shift_rows = new CalendarCollection([]);
 
         for ( let row of this.todayCalendarRows ) {
 
             if ( row.isNecessary() && row.isNightShift() && row.isNotFilled() && row.isPondSlave() === false ) {
 
-                today_necessary_night_shift_rows_keep.push( row );
+                today_necessary_night_shift_rows.push( row );
 
             }
 
         }
-
-        let today_necessary_night_shift_rows = new CalendarCollection( today_necessary_night_shift_rows_keep );
-
-        this._calculate_and_store_eligibility_on_rows( this.employees, today_necessary_night_shift_rows, this.todayCalendarRows.getElement( 0 ).date );
 
         today_necessary_night_shift_rows.sortByEligibleEmployeesAsc();
 
@@ -2113,7 +1732,7 @@ RosterEngine.prototype.calculate = function() {
 
             let employee_to_fill_row = this._assign_employee( today_necessary_night_shift_rows.getElement( 0 ), this.futureCalendarRows );
 
-            this._fillCalendarRowWithEmployee( employee_to_fill_row, today_necessary_night_shift_rows.getElement( 0 ) );
+            this._allocate( employee_to_fill_row, today_necessary_night_shift_rows.getElement( 0 ) );
 
             today_necessary_night_shift_rows.removeById( today_necessary_night_shift_rows.getElement( 0 ).id );
 
@@ -2131,51 +1750,31 @@ RosterEngine.prototype.calculate = function() {
 
     }
 
+    /**
+     * @todo pithano optimization me antikatastasi tou _calculate_and_store_eligibility_on_rows me to calendarCollection.removeEmployeeFromEligible
+     */
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
+
 
 
 
     /**
-     * BLOCK 5: fill necessay shifts
-     * FOR every row in the calendar rows for this day
-     *  IF this row is necessary AND NOT night
-     *      IF today's shift has been manually set, move on to the next calendar row
-     *      IF today's shift is somehow else filled, move on to the next calendar row
-     *      IF today's shift is a pond slave shift, move on to the next calendar row
-     *      find employees that are available today and eligible to fill this role
-     *      IF noone is found, move on to the next calendar row
-     *      plainly select the first random employee to fill this today's shift
-     *      fill this calendar row with this employee
-     *      remove this employee from the available employees we have for filling today's shifts
+     * mas zitisan na vazoume odo to dynaton prwta ti nyxta
+     * se auto to step vazw osa necessary den einai nyxta, dld osa necessary den plirwthikan sto proigoumeno step
      */
     {
 
-        let today_necessary_shift_rows_keep = []
+        let today_necessary_shift_rows = new CalendarCollection([]);
 
         for ( let row of this.todayCalendarRows ) {
 
-            if ( row.id === 48668 ) {
-
-                console.log( structuredClone( row ) );
-                console.log( structuredClone( row.isNecessary() ) );
-                console.log( structuredClone( row.isNightShift() ) );
-                console.log( structuredClone( row.isNotFilled() ) );
-                console.log( structuredClone( row.isPondSlave() ) );
-
-            }
-
             if ( row.isNecessary() && row.isNightShift() === false && row.isNotFilled() && row.isPondSlave() === false ) {
 
-                today_necessary_shift_rows_keep.push( row );
+                today_necessary_shift_rows.push( row );
 
             }
 
         }
-
-        let today_necessary_shift_rows = new CalendarCollection( today_necessary_shift_rows_keep );
-
-        let custom = today_necessary_shift_rows.getById( '48668' ); console.log( structuredClone( custom ) );
-
-        this._calculate_and_store_eligibility_on_rows( this.employees, today_necessary_shift_rows, this.todayCalendarRows.getElement( 0 ).date );
 
         today_necessary_shift_rows.sortByEligibleEmployeesAsc();
 
@@ -2183,7 +1782,7 @@ RosterEngine.prototype.calculate = function() {
 
             let employee_to_fill_row = this._assign_employee( today_necessary_shift_rows.getElement( 0 ), this.futureCalendarRows );
 
-            this._fillCalendarRowWithEmployee( employee_to_fill_row, today_necessary_shift_rows.getElement( 0 ) );
+            this._allocate( employee_to_fill_row, today_necessary_shift_rows.getElement( 0 ) );
 
             today_necessary_shift_rows.removeById( today_necessary_shift_rows.getElement( 0 ).id );
 
@@ -2200,6 +1799,11 @@ RosterEngine.prototype.calculate = function() {
         }
 
     }
+
+    /**
+     * @todo pithano optimization me antikatastasi tou _calculate_and_store_eligibility_on_rows me to calendarCollection.removeEmployeeFromEligible
+     */
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
 
 
 
@@ -2221,8 +1825,6 @@ RosterEngine.prototype.calculate = function() {
 
         if ( todayCalendarRow.isNecessary() && todayCalendarRow.isPondSlave() ) {
 
-            if ( todayCalendarRow.isManuallySet() ) { continue; }
-
             if ( todayCalendarRow.isFilled() ) { continue; }
 
             let todayMasterCalendarRow = this._findMasterCalendarRowBySlaveCalendarRow( todayCalendarRow );
@@ -2233,45 +1835,38 @@ RosterEngine.prototype.calculate = function() {
 
             let employeeThatFilledTheMasterCalendarRow = this.employees.getById( todayMasterCalendarRow.employee_id );
 
-            this._fillCalendarRowWithEmployee( employeeThatFilledTheMasterCalendarRow, todayCalendarRow );
+            this._allocate( employeeThatFilledTheMasterCalendarRow, todayCalendarRow );
 
         }
 
     }
+
+    /**
+     * @todo endexetai auto na einai entelws redundant to
+     * kai mporoume na to tsekaroume trexontas mia olokliri evdomada kai na doume an tha vgalei ta idia apotelesmata
+     */
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
 
 
 
 
     // 13
     /**
-     * BLOCK 7: fill unnecessary pond master shifts
-     * FOR every row in the calendar rows for this day
-     *  IF this row is un-necessary AND also a pond master
-     *      IF today's shift has been manually set, move on to the next calendar row
-     *      IF today's shift is somehow else filled, move on to the next calendar row
-     *      find employees that are available today and eligible to fill this role
-     *      IF noone is found, move on to the next calendar row
-     *      plainly select the first random employee to fill this today's shift
-     *      fill this calendar row with this employee
-     *      remove this employee from the available employees we have for filling today's shifts
+     * gemizei tous unnecessary pond masters
      */
     {
 
-        let today_unnecessary_pond_master_shift_rows_keep = []
+        let today_unnecessary_pond_master_shift_rows = new CalendarCollection([]);
 
         for ( let row of this.todayCalendarRows ) {
 
             if ( row.isUnnecessary() && row.isNotFilled() && row.isPondMaster() ) {
 
-                today_unnecessary_pond_master_shift_rows_keep.push( row );
+                today_unnecessary_pond_master_shift_rows.push( row );
 
             }
 
         }
-
-        let today_unnecessary_pond_master_shift_rows = new CalendarCollection( today_unnecessary_pond_master_shift_rows_keep );
-
-        this._calculate_and_store_eligibility_on_rows( this.employees, today_unnecessary_pond_master_shift_rows, this.todayCalendarRows.getElement( 0 ).date );
 
         today_unnecessary_pond_master_shift_rows.sortByEligibleEmployeesAsc();
 
@@ -2279,7 +1874,7 @@ RosterEngine.prototype.calculate = function() {
 
             let employee_to_fill_row = this._assign_employee( today_unnecessary_pond_master_shift_rows.getElement( 0 ), this.futureCalendarRows );
 
-            this._fillCalendarRowWithEmployee( employee_to_fill_row, today_unnecessary_pond_master_shift_rows.getElement( 0 ) );
+            this._allocate( employee_to_fill_row, today_unnecessary_pond_master_shift_rows.getElement( 0 ) );
 
             today_unnecessary_pond_master_shift_rows.removeById( today_unnecessary_pond_master_shift_rows.getElement( 0 ).id );
 
@@ -2297,27 +1892,21 @@ RosterEngine.prototype.calculate = function() {
 
     }
 
+    /**
+     * @todo pithano optimization me antikatastasi tou _calculate_and_store_eligibility_on_rows me to calendarCollection.removeEmployeeFromEligible
+     */
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
+
 
 
 
     // 14
     /**
-     * BLOCK 8: fill unnecessary pond (slave) shifts
-     * FOR every row in the calendar rows for this day
-     *  IF this row is un-necessary AND also a pond slave
-     *      IF today's shift has been manually set, move on to the next calendar row
-     *      IF today's shift is somehow else filled, move on to the next calendar row
-     *      find the pond master shift for today
-     *      IF for some reason we cant even fathom at this point there is no pond master, move on to the next calendar row
-     *      IF the pond master shift for today is not filled, either manually or automatically, move on to the next calendar row
-     *      find the employee that filled the pond master shift for today
-     *      fill this calendar row with this employee 
+     * gemizei ola ta unnenecessary ponds slaves an o pond master einai gematos
      */
     for ( let todayCalendarRow of this.todayCalendarRows ) {
 
         if ( todayCalendarRow.isUnnecessary() && todayCalendarRow.isPondSlave() ) {
-
-            if ( todayCalendarRow.isManuallySet() ) { continue; }
 
             if ( todayCalendarRow.isFilled() ) { continue; }
 
@@ -2329,27 +1918,25 @@ RosterEngine.prototype.calculate = function() {
 
             let employeeThatFilledTheMasterCalendarRow = this.employees.getById( todayMasterCalendarRow.employee_id );
 
-            this._fillCalendarRowWithEmployee( employeeThatFilledTheMasterCalendarRow, todayCalendarRow );
+            this._allocate( employeeThatFilledTheMasterCalendarRow, todayCalendarRow );
 
         }
 
     }
 
     /**
-     * BLOCK 9: fill shifts that belong in a pond and a slave is filled but the master is not.
-     * fill the master and then any other slave shifts in this pond that are also not filled
-     * FOR every shift in the calendar rows for this day
-     *  IF this shift is a pond slave AND is also somehow filled either manually or automatically
-     *      extract the employee info that filled that slave shift
-     *      extract the pond master shift from today's rows
-     *      IF no pond master shift is found, for reasons i cant even begin to fathom, abandon everything and move on to the next today's shift
-     *      IF a pond master shift is found and it is NOT filled
-     *          fill the pond master shift with the employee we extracted previously
-     *      extract all pond slave shifts from today's rows that are in the same pond with the shift we are currently handling
-     *      remove from these pond slave shifts, the very pond slave shift we are currently handling. this is mainly for peace of mind, i think we dont have to
-     *      FOR every pond slave shift extracted previously
-     *          IF this pond slave shift is somehow filled, either automatically or manually, abort and move on to the next pond slave shift
-     *          fill the pond slave shift with the employee we extracted in the beginning of this block
+     * @todo endexetai auto na einai entelws redundant to
+     * kai mporoume na to tsekaroume trexontas mia olokliri evdomada kai na doume an tha vgalei ta idia apotelesmata
+     */
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
+
+
+
+
+    /**
+     * an o pond slave einai gematos kai o master den einai
+     * gemizei ton master me auton pou itan ston pond slave
+     * kai olous tous ypoloipous slaves me ton idio ypallilo
      */
     for ( let todayCalendarRow of this.todayCalendarRows ) {
 
@@ -2363,7 +1950,7 @@ RosterEngine.prototype.calculate = function() {
 
             if ( masterCalendarRow.isNotFilled() ) {
 
-                this._fillCalendarRowWithEmployee( employeeDerivedFromSlaveRow, masterCalendarRow );
+                this._allocate( employeeDerivedFromSlaveRow, masterCalendarRow );
 
             }
 
@@ -2375,7 +1962,7 @@ RosterEngine.prototype.calculate = function() {
 
                 if ( slaveRow.isFilled() ) { continue; }
 
-                this._fillCalendarRowWithEmployee( employeeDerivedFromSlaveRow, slaveRow );
+                this._allocate( employeeDerivedFromSlaveRow, slaveRow );
 
             }
 
@@ -2383,36 +1970,32 @@ RosterEngine.prototype.calculate = function() {
 
     }
 
+    /**
+     * @todo endexetai auto na einai entelws redundant to
+     * kai mporoume na to tsekaroume trexontas mia olokliri evdomada kai na doume an tha vgalei ta idia apotelesmata
+     */
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
+
+
+
+
     // 15
     /**
-     * BLOCK 10: fill unnecessary shifts
-     * FOR every row in the calendar rows for this day
-     *  IF this row is un-necessary AND also a pond slave
-     *      IF today's shift has been manually set, move on to the next calendar row
-     *      IF today's shift is somehow else filled, move on to the next calendar row
-     *      find employees that are available today and eligible to fill this role
-     *      IF noone is found, move on to the next calendar row
-     *      plainly select the first random employee to fill this today's shift
-     *      fill this calendar row with this employee
-     *      remove this employee from the available employees we have for filling today's shifts
+     * gemizei oti exei ksemeinei apo ta unnecessary
      */
     {
 
-        let today_unnecessary_shift_rows_keep = [];
+        let today_unnecessary_shift_rows = new CalendarCollection([]);
 
         for ( let row of this.todayCalendarRows ) {
 
             if ( row.isUnnecessary() && row.isNotFilled() ) {
 
-                today_unnecessary_shift_rows_keep.push( row );
+                today_unnecessary_shift_rows.push( row );
 
             }
 
         }
-
-        let today_unnecessary_shift_rows = new CalendarCollection( today_unnecessary_shift_rows_keep );
-
-        this._calculate_and_store_eligibility_on_rows( this.employees, today_unnecessary_shift_rows, this.todayCalendarRows.getElement( 0 ).date );
 
         today_unnecessary_shift_rows.sortByEligibleEmployeesAsc();
 
@@ -2420,7 +2003,7 @@ RosterEngine.prototype.calculate = function() {
 
             let employee_to_fill_row = this._assign_employee( today_unnecessary_shift_rows.getElement( 0 ), this.futureCalendarRows );
 
-            this._fillCalendarRowWithEmployee( employee_to_fill_row, today_unnecessary_shift_rows.getElement( 0 ) );
+            this._allocate( employee_to_fill_row, today_unnecessary_shift_rows.getElement( 0 ) );
 
             today_unnecessary_shift_rows.removeById( today_unnecessary_shift_rows.getElement( 0 ).id );
 

@@ -1679,6 +1679,18 @@ RosterEngine.prototype._autofill_future_nightshifts = function( employees, calen
 
 };
 
+/**
+ * @see DB_Calendar.prototype.isEverydayShift @notcached
+ * @see DB_Calendar.prototype.isEveningShift @cached
+ * @see DB_Calendar.prototype.isNightShift @cached
+ * @see DB_Calendar.prototype.isWeekendShift @cached
+ * @see DB_Calendar.prototype.isMorningShift @cached
+ * @see DB_Calendar.prototype.isHolidayShift @notcached
+ * @see CalendarCollection.prototype.getAllForEmployeeId
+ * @method
+ * @private
+ * @returns {void}
+ */
 RosterEngine.prototype._augmentEmployees = function() {
 
     /**
@@ -1741,32 +1753,6 @@ RosterEngine.prototype._augmentEmployees = function() {
         }
 
     }
-
-    /**
-     * this block allocates the _lastAttendance property to all employees in the format of '2025-11-25 14:00'
-     */
-    // for ( employee of this.employees ) {
-
-    //     employee._lastAttendance = this.olderCalendarRows.getLastAttendanceForEmployee( employee.id );
-
-    // } console.log( structuredClone( this.employees ) );
-
-    /**
-     * this block keeps only the employees that are not on leave today
-     */
-    // var availableEmployees = this.employees.getWithoutLeaveForDate( this.todayCalendarRows.getElement( 0 ).date, this.leaves ); console.log( structuredClone( this.employees ) );
-
-    /**
-     * this block removes all employees that the day before were on a night shift
-     */
-    // this._removeEmployeesThatHadANightShiftTheDayBefore( availableEmployees );
-
-    /**
-     * this block removes all employees that somehow they were already allocated in a shift today
-     */
-    // this._removeEmployeesThatAlreadyFillAShiftToday( availableEmployees );
-
-    // return availableEmployees;
 
 };
 

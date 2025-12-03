@@ -140,6 +140,13 @@ function RosterEngine() {
      */
     this._getPreviousDateMap = new Map();
 
+    /**
+     * @property
+     * @private
+     * @type {Map}
+     */
+    this._getNextDateByDaysMap = new Map();
+
 };
 
 RosterEngine.prototype.set_futureRows = function ( rows ) {
@@ -408,7 +415,7 @@ RosterEngine.prototype.save = function( callbackFunc ) {
  * @see RosterEngine.prototype._assign_hard_shift
  * @see RosterEngine.prototype._assign_easy_shift
  * @see RosterEngine.prototype._is_the_employee_necessary_for_this_day
- * @see RosterEngine.prototype._getNextDateByDays
+ * @see RosterEngine.prototype._getNextDateByDays @cached
  * @method
  * @private
  * @param {DB_Calendar} calendar_row 
@@ -477,7 +484,7 @@ RosterEngine.prototype._assign_employee = function( calendar_row, calendar_row_c
 };
 
 /**
- * @see EmployeesCollection.prototype.getById
+ * @see EmployeesCollection.prototype.getById @noncachable
  * @method
  * @private
  * @description if employee given is null, returns false
@@ -573,7 +580,7 @@ RosterEngine.prototype._is_the_employee_necessary_for_this_day = function( emplo
 /**
  * @runs 1 time / day
  * @see DB_Calendar.prototype.getPreviousDateBy6Days @notcached
- * @see ShiftsCollection.prototype.getByIdCached
+ * @see ShiftsCollection.prototype.getByIdCached @cached
  * @see ShiftsCollection.prototype.isLinkedShift @cached
  * @see ShiftsCollection.prototype.isLinkedTargetShift @cached
  * @see ShiftPondCollection.prototype.isPondMasterShift @cached
@@ -746,6 +753,7 @@ RosterEngine.prototype._allocate = function( employee, calendarRow ) {
 };
 
 /**
+ * @cached
  * @runs 197 times / day
  * @method
  * @private
@@ -775,7 +783,7 @@ RosterEngine.prototype._getPreviousDate = function( dateString ) {
 };
 
 /**
- * @runs ? times / day
+ * @cached
  * @method
  * @private
  * @param {String} dateString YYYY-MM-DD
@@ -784,7 +792,13 @@ RosterEngine.prototype._getPreviousDate = function( dateString ) {
  */
 RosterEngine.prototype._getNextDateByDays = function( dateString, daysNum ) {
 
-    // console.log( 'run' );
+    var key = dateString + ':' + daysNum;
+
+    if ( this._getNextDateByDaysMap.has( key ) ) {
+
+        return this._getNextDateByDaysMap.get( key );
+
+    }
 
     var date = new Date( dateString );
 
@@ -794,16 +808,16 @@ RosterEngine.prototype._getNextDateByDays = function( dateString, daysNum ) {
     var month = String( date.getMonth() + 1 ).padStart( 2, '0' );
     var day = String( date.getDate() ).padStart( 2, '0' );
 
-    var formatted = year + '-' + month + '-' + day;
+    this._getNextDateByDaysMap.set( key, year + '-' + month + '-' + day );
 
-    return formatted;
+    return this._getNextDateByDaysMap.get( key );
 
 };
 
 /**
  * @runs 36 times / day
  * @see CalendarCollection.prototype.getByDateAndShiftId
- * @see RosterEngine.prototype._getPreviousDate
+ * @see RosterEngine.prototype._getPreviousDate @cached
  * @param {String} currentDateStr YYYY-MM-DD
  * @param {Number} shiftId 
  * @returns {DB_Calendar|null}
@@ -872,7 +886,7 @@ RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = f
  * @runs ? times / day
  * @see CalendarCollection.prototype.getAllByDate
  * @see EmployeesCollection.removeById
- * @see RosterEngine.prototype._getPreviousDate
+ * @see RosterEngine.prototype._getPreviousDate @cached
  * @param {EmployeesCollection} employees 
  * @param {String} currentDate YYYY-MM-DD
  */

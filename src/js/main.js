@@ -754,7 +754,6 @@ RosterEngine.prototype._allocate = function( employee, calendarRow ) {
 
 /**
  * @cached
- * @runs 197 times / day
  * @method
  * @private
  * @param {String} dateString YYYY-MM-DD
@@ -816,7 +815,7 @@ RosterEngine.prototype._getNextDateByDays = function( dateString, daysNum ) {
 
 /**
  * @runs 36 times / day
- * @see CalendarCollection.prototype.getByDateAndShiftId
+ * @see CalendarCollection.prototype.getByDateAndShiftId @cached
  * @see RosterEngine.prototype._getPreviousDate @cached
  * @param {String} currentDateStr YYYY-MM-DD
  * @param {Number} shiftId 

@@ -408,10 +408,10 @@ RosterEngine.prototype.save = function( callbackFunc ) {
 
 /**
  * @runs 116 times / day
- * @see DB_Calendar.prototype.isEverydayShift @notcached
+ * @see DB_Calendar.prototype.isEverydayShift @noncachable
  * @see DB_Calendar.prototype.isMorningShift @cached
  * @see DB_Calendar.prototype.hasDayoffRules @cached
- * @see EmployeesCollection.prototype.removeById
+ * @see EmployeesCollection.prototype.removeById @noncachable
  * @see RosterEngine.prototype._assign_hard_shift
  * @see RosterEngine.prototype._assign_easy_shift
  * @see RosterEngine.prototype._is_the_employee_necessary_for_this_day
@@ -579,7 +579,7 @@ RosterEngine.prototype._is_the_employee_necessary_for_this_day = function( emplo
 
 /**
  * @runs 1 time / day
- * @see DB_Calendar.prototype.getPreviousDateBy6Days @notcached
+ * @see DB_Calendar.prototype.getPreviousDateBy6Days @noncachable
  * @see ShiftsCollection.prototype.getByIdCached @cached
  * @see ShiftsCollection.prototype.isLinkedShift @cached
  * @see ShiftsCollection.prototype.isLinkedTargetShift @cached
@@ -849,8 +849,8 @@ RosterEngine.prototype._getMostRecentCalendarShift = function( currentDateStr, s
 
 /**
  * @runs ? times / day
- * @see ShiftsCollection.prototype.getByIdCached
- * @see EmployeesCollection.getById
+ * @see ShiftsCollection.prototype.getByIdCached @cached
+ * @see EmployeesCollection.getByIdCached @cached
  * @see RosterEngine.prototype._getMostRecentCalendarShift
  * @method
  * @private
@@ -877,7 +877,7 @@ RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = f
 
     if ( sourceCalendarRow.employee_id === null ) { return null; }
 
-    return this.employees.getById( sourceCalendarRow.employee_id );
+    return this.employees.getByIdCached( sourceCalendarRow.employee_id );
 
 };
 

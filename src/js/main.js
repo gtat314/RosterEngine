@@ -883,8 +883,8 @@ RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = f
 
 /**
  * @runs ? times / day
- * @see CalendarCollection.prototype.getAllByDate
- * @see EmployeesCollection.removeById
+ * @see CalendarCollection.prototype.getAllByDate @cached
+ * @see EmployeesCollection.removeById @noncachable
  * @see RosterEngine.prototype._getPreviousDate @cached
  * @param {EmployeesCollection} employees 
  * @param {String} currentDate YYYY-MM-DD

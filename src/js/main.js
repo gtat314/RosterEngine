@@ -399,14 +399,14 @@ RosterEngine.prototype.save = function( callbackFunc ) {
 
 
 /**
- * @see DB_Calendar.prototype.isEverydayShift @noncachable
+ * @see DB_Calendar.prototype.isEverydayShift
  * @see DB_Calendar.prototype.isMorningShift @cached
- * @see DB_Calendar.prototype.hasDayoffRules @cached
- * @see EmployeesCollection.prototype.removeById @noncachable
+ * @see DB_Calendar.prototype.hasDayoffRules
+ * @see EmployeesCollection.prototype.removeById
  * @see RosterEngine.prototype._assign_hard_shift
  * @see RosterEngine.prototype._assign_easy_shift
  * @see RosterEngine.prototype._is_the_employee_necessary_for_this_day
- * @see RosterEngine.prototype._getNextDateByDays @cached
+ * @see RosterEngine.prototype._getNextDateByDays
  * @method
  * @private
  * @param {DB_Calendar} calendar_row 
@@ -475,7 +475,7 @@ RosterEngine.prototype._assign_employee = function( calendar_row, calendar_row_c
 };
 
 /**
- * @see EmployeesCollection.prototype.getById @noncachable
+ * @see EmployeesCollection.prototype.getById
  * @method
  * @private
  * @description if employee given is null, returns false
@@ -511,7 +511,7 @@ RosterEngine.prototype._is_employee_necessary_for_this_shift = function( employe
 };
 
 /**
- * @see DB_Calendar.prototype.isNecessary @cached
+ * @see DB_Calendar.prototype.isNecessary
  * @see RosterEngine.prototype._is_employee_necessary_for_this_shift
  * @method
  * @private
@@ -570,11 +570,11 @@ RosterEngine.prototype._is_the_employee_necessary_for_this_day = function( emplo
 
 /**
  * @runs 1 time / day
- * @see DB_Calendar.prototype.getPreviousDateBy6Days @noncachable
- * @see ShiftsCollection.prototype.getByIdCached @cached
- * @see ShiftsCollection.prototype.isLinkedShift @cached
- * @see ShiftsCollection.prototype.isLinkedTargetShift @cached
- * @see ShiftPondCollection.prototype.isPondMasterShift @cached
+ * @see DB_Calendar.prototype.getPreviousDateBy6Days
+ * @see ShiftsCollection.prototype.getByIdCached
+ * @see ShiftsCollection.prototype.isLinkedShift
+ * @see ShiftsCollection.prototype.isLinkedTargetShift
+ * @see ShiftPondCollection.prototype.isPondMasterShift
  * @see RosterEngine.prototype._getMostRecentCalendarShift
  * @see RosterEngine.prototype._getMasterCalendarRowIdBySlaveCalendarRow
  * @see RosterEngine.prototype._calculate_and_store_eligibility_on_rows
@@ -713,10 +713,10 @@ RosterEngine.prototype._augmentCalendarRows = function ( calendarCollection, emp
 };
 
 /**
- * @runs 125 times / day
- * @see DB_Employee.prototype.getFullname @cached
+ *
  * @method
  * @private
+ * @see DB_Employee.prototype.getFullname
  * @param {DB_Employee} employee 
  * @param {DB_Calendar} calendarRow 
  * @returns {void}
@@ -744,7 +744,7 @@ RosterEngine.prototype._allocate = function( employee, calendarRow ) {
 };
 
 /**
- * @cached
+ *
  * @method
  * @private
  * @param {String} dateString YYYY-MM-DD
@@ -776,8 +776,8 @@ RosterEngine.prototype._getNextDateByDays = function( dateString, daysNum ) {
 };
 
 /**
- * @see lib_getPreviousDate @cached
- * @see CalendarCollection.prototype.getByDateAndShiftId @cached
+ * @see lib_getPreviousDate
+ * @see CalendarCollection.prototype.getByDateAndShiftId
  * @param {String} currentDateStr YYYY-MM-DD
  * @param {Number} shiftId 
  * @returns {DB_Calendar|null}
@@ -809,8 +809,8 @@ RosterEngine.prototype._getMostRecentCalendarShift = function( currentDateStr, s
 };
 
 /**
- * @see ShiftsCollection.prototype.getByIdCached @cached
- * @see EmployeesCollection.getByIdCached @cached
+ * @see ShiftsCollection.prototype.getByIdCached
+ * @see EmployeesCollection.getByIdCached
  * @see RosterEngine.prototype._getMostRecentCalendarShift
  * @method
  * @private
@@ -842,9 +842,9 @@ RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = f
 };
 
 /**
- * @see lib_getPreviousDate @cached
- * @see CalendarCollection.prototype.getAllByDate @cached
- * @see EmployeesCollection.removeById @noncachable
+ * @see lib_getPreviousDate
+ * @see CalendarCollection.prototype.getAllByDate
+ * @see EmployeesCollection.removeById
  * @param {EmployeesCollection} employees 
  * @param {String} currentDate YYYY-MM-DD
  */
@@ -869,9 +869,9 @@ RosterEngine.prototype._removeEmployeesThatHadANightShiftTheDayBefore = function
 };
 
 /**
- * @see ShiftPondCollection.prototype.getPondByShiftId @cached
- * @see ShiftPondCollection.prototype.getMasterShiftIdForPondId @cached
- * @see CalendarCollection.prototype.getByShiftId @cached
+ * @see ShiftPondCollection.prototype.getPondByShiftId
+ * @see ShiftPondCollection.prototype.getMasterShiftIdForPondId
+ * @see CalendarCollection.prototype.getByShiftId
  * @method
  * @private
  * @param {DB_Calendar} row 
@@ -916,10 +916,10 @@ RosterEngine.prototype._getMasterCalendarRowIdBySlaveCalendarRow = function( row
 };
 
 /**
- * @cached
+ *
  * @method
  * @private
- * @see CalendarCollection.prototype.getByIdCached @cached
+ * @see CalendarCollection.prototype.getByIdCached
  * @param {DB_Calendar} row 
  * @returns {DB_Calendar|null}
  */
@@ -958,7 +958,7 @@ RosterEngine.prototype._findMasterCalendarRowBySlaveCalendarRow = function( row 
 };
 
 /**
- * @see TimetablesCollection.prototype.getWeekendIds @cached
+ * @see TimetablesCollection.prototype.getWeekendIds
  * @method
  * @private
  * @param {DB_Employee} employee 
@@ -1008,7 +1008,7 @@ RosterEngine.prototype._employeeHasExcludedWeekendsFromHisPreferences = function
 };
 
 /**
- * @see TimetablesCollection.prototype.getNightIds @cached
+ * @see TimetablesCollection.prototype.getNightIds
  * @method
  * @private
  * @param {DB_Employee} employee 
@@ -1048,8 +1048,8 @@ RosterEngine.prototype._employeeHasExcludedNightsFromHisPreferences = function( 
 };
 
 /**
- * @see DB_Role.prototype.getPoolsByPreference @cached
- * @see RolesCollection.prototype.getByIdCached @cached
+ * @see DB_Role.prototype.getPoolsByPreference
+ * @see RolesCollection.prototype.getByIdCached
  * @method
  * @private
  * @param {DB_Calendar} calendar_row 
@@ -1072,42 +1072,20 @@ RosterEngine.prototype._getPoolsForCalendarRow = function( calendar_row ) {
 };
 
 /**
- * @see JunctionEmployeePool.prototype.exists @cached
- * @method
- * @private
- * @param {DB_Employee} employee 
- * @param {DB_Pool} pool 
- * @returns {Boolean}
- */
-RosterEngine.prototype._employeeHasPool = function( employee, pool ) {
-
-    // console.log( 'run' );
-
-    if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
-
-        return true;
-
-    }
-
-    return false;
-
-};
-
-/**
- * @see lib_getHoursBetween @cached
- * @see DB_Employee.prototype.isOnLeaveForDate @cached
- * @see DB_Employee.prototype.isOnDayOffAfterNightShiftForDate @cached
+ * @see lib_getHoursBetween
+ * @see DB_Pool.prototype.hasEmployee
+ * @see DB_Employee.prototype.isOnLeaveForDate
+ * @see DB_Employee.prototype.isOnDayOffAfterNightShiftForDate
  * @see DB_Calendar.prototype.isWeekendShift @cached
- * @see DB_Calendar.prototype.getNextDayDate @cached
- * @see DB_Calendar.prototype.getShiftEndDatetime @cached
- * @see DB_Calendar.prototype.getShiftBeginDatetime @cached
- * @see DB_Calendar.prototype.getPreviousDayDate @cached
+ * @see DB_Calendar.prototype.getNextDayDate
+ * @see DB_Calendar.prototype.getShiftEndDatetime
+ * @see DB_Calendar.prototype.getShiftBeginDatetime
+ * @see DB_Calendar.prototype.getPreviousDayDate
  * @see DB_Calendar.prototype.isNightShift @cached
- * @see DB_Calendar.prototype.getPreviousFridayDate @cached
- * @see DB_Calendar.prototype.getNextSaturdayDate @cached
+ * @see DB_Calendar.prototype.getPreviousFridayDate
+ * @see DB_Calendar.prototype.getNextSaturdayDate
  * @see RosterEngine.prototype._employeeHasExcludedWeekendsFromHisPreferences
  * @see RosterEngine.prototype._getPoolsForCalendarRow
- * @see RosterEngine.prototype._employeeHasPool
  * @see RosterEngine.prototype._employeeHasExcludedNightsFromHisPreferences
  * @param {DB_Employee} employee 
  * @param {DB_Calendar} shift_calendar_row 
@@ -1154,7 +1132,7 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
     for ( let pool of shift_calendar_row_pools ) {
 
         // 4.1
-        if ( this._employeeHasPool( employee, pool ) ) {
+        if ( pool.hasEmployee( employee.id, this.junctionEmployeePool ) ) {
 
             // 4.1.1
             employee_viability = true;
@@ -1309,9 +1287,9 @@ RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( empl
 };
 
 /**
- * @see DB_Employee.prototype.prefersThisShift @cached
- * @see JunctionEmployeePool.prototype.exists @cached
- * @see EmployeesCollection.prototype.sort_byHardShiftWeightAsc @noncachable
+ * @see DB_Employee.prototype.prefersThisShift
+ * @see JunctionEmployeePool.prototype.exists
+ * @see EmployeesCollection.prototype.sort_byHardShiftWeightAsc
  * @see RosterEngine.prototype._getPoolsForCalendarRow
  * @method
  * @private
@@ -1430,9 +1408,9 @@ RosterEngine.prototype._assign_hard_shift = function( calendar_row ) {
 };
 
 /**
- * @see DB_Employee.prototype.prefersThisShift @cached
- * @see JunctionEmployeePool.prototype.exists @cached
- * @see EmployeesCollection.prototype.sort_byHardShiftWeightAsc @noncachable
+ * @see DB_Employee.prototype.prefersThisShift
+ * @see JunctionEmployeePool.prototype.exists
+ * @see EmployeesCollection.prototype.sort_byHardShiftWeightAsc
  * @see RosterEngine.prototype._getPoolsForCalendarRow
  * @method
  * @private
@@ -1551,14 +1529,14 @@ RosterEngine.prototype._assign_easy_shift = function( calendar_row ) {
 };
 
 /**
- * @see DB_Calendar.prototype.isFriday @cached
+ * @see DB_Calendar.prototype.isFriday
  * @see DB_Calendar.prototype.isNightShift @cached
- * @see DB_Calendar.prototype.isNecessary @cached
- * @see DB_Calendar.prototype.getNextSaturdayDate @cached
- * @see DB_Calendar.prototype.isNotFilled @cached
- * @see DB_Employee.prototype.getFullname @cached
- * @see EmployeesCollection.prototype.removeById @noncachable
- * @see CalendarCollection.prototype.removeById @noncachable
+ * @see DB_Calendar.prototype.isNecessary
+ * @see DB_Calendar.prototype.getNextSaturdayDate
+ * @see DB_Calendar.prototype.isNotFilled
+ * @see DB_Employee.prototype.getFullname
+ * @see EmployeesCollection.prototype.removeById
+ * @see CalendarCollection.prototype.removeById
  * @see RosterEngine.prototype._assign_employee
  * @method
  * @private
@@ -1656,13 +1634,13 @@ RosterEngine.prototype._autofill_future_nightshifts = function( employees, calen
 };
 
 /**
- * @see DB_Calendar.prototype.isEverydayShift @noncachable
+ * @see DB_Calendar.prototype.isEverydayShift
  * @see DB_Calendar.prototype.isEveningShift @cached
  * @see DB_Calendar.prototype.isNightShift @cached
  * @see DB_Calendar.prototype.isWeekendShift @cached
  * @see DB_Calendar.prototype.isMorningShift @cached
- * @see DB_Calendar.prototype.isHolidayShift @noncachable
- * @see CalendarCollection.prototype.getAllForEmployeeId @noncachable because it only runs once per day
+ * @see DB_Calendar.prototype.isHolidayShift
+ * @see CalendarCollection.prototype.getAllForEmployeeId because it only runs once per day
  * @method
  * @private
  * @returns {void}
@@ -1736,22 +1714,22 @@ RosterEngine.prototype._augmentEmployees = function() {
 
 
 /**
- * @see DB_Employee.prototype.getFullname @cached
- * @see DB_Calendar.prototype.isLinkedTargetShift @cached
- * @see DB_Calendar.prototype.isFilled @cached
- * @see DB_Calendar.prototype.isLinkedSourceShift @cached
+ * @see DB_Employee.prototype.getFullname
+ * @see DB_Calendar.prototype.isLinkedTargetShift
+ * @see DB_Calendar.prototype.isFilled
+ * @see DB_Calendar.prototype.isLinkedSourceShift
  * @see DB_Calendar.prototype.isNightShift @cached
- * @see DB_Calendar.prototype.isNecessary @cached
- * @see DB_Calendar.prototype.isNotFilled @cached
- * @see DB_Calendar.prototype.isPondSlave @cached
- * @see DB_Calendar.prototype.isUnnecessary @cached
- * @see DB_Calendar.prototype.isPondMaster @cached
- * @see EmployeesCollection.prototype.getById @noncachable
- * @see EmployeesCollection.prototype.removeById @noncachable
- * @see CalendarCollection.prototype.concatCollection @noncachable
- * @see CalendarCollection.prototype.getSourceByTarget @noncachable
- * @see CalendarCollection.prototype.sortByEligibleEmployeesAsc @noncachable
- * @see CalendarCollection.prototype.removeById @noncachable
+ * @see DB_Calendar.prototype.isNecessary
+ * @see DB_Calendar.prototype.isNotFilled
+ * @see DB_Calendar.prototype.isPondSlave
+ * @see DB_Calendar.prototype.isUnnecessary
+ * @see DB_Calendar.prototype.isPondMaster
+ * @see EmployeesCollection.prototype.getById
+ * @see EmployeesCollection.prototype.removeById
+ * @see CalendarCollection.prototype.concatCollection
+ * @see CalendarCollection.prototype.getSourceByTarget
+ * @see CalendarCollection.prototype.sortByEligibleEmployeesAsc
+ * @see CalendarCollection.prototype.removeById
  * @see CalendarCollection.prototype.getAllSlavesForPond
  * @see RosterEngine.prototype._augmentCalendarRows
  * @see RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift
@@ -1760,7 +1738,7 @@ RosterEngine.prototype._augmentEmployees = function() {
  * @see RosterEngine.prototype._assign_hard_shift
  * @see RosterEngine.prototype._autofill_future_nightshifts
  * @see RosterEngine.prototype._assign_employee
- * @see RosterEngine.prototype._findMasterCalendarRowBySlaveCalendarRow @cached
+ * @see RosterEngine.prototype._findMasterCalendarRowBySlaveCalendarRow
  */
 RosterEngine.prototype.calculate = function() {
 

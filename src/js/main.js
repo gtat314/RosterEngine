@@ -115,6 +115,13 @@ function RosterEngine() {
     /**
      * @property
      * @public
+     * @type {CalendarCollection}
+     */
+    this.holidayRows = null;
+
+    /**
+     * @property
+     * @public
      * @type {DB_Settings}
      */
     this.settings = null;
@@ -151,6 +158,18 @@ function RosterEngine() {
 RosterEngine.prototype.set_futureRows = function ( rows ) {
 
     this.futureCalendarRows = new CalendarCollection( rows );
+
+};
+
+/**
+ * @method
+ * @public
+ * @param {Object} rows 
+ * @returns {void}
+ */
+RosterEngine.prototype.set_holidayRows = function( rows ) {
+
+    this.holidayRows = new CalendarCollection( rows );
 
 };
 
@@ -1077,7 +1096,7 @@ RosterEngine.prototype._getPoolsForCalendarRow = function( calendar_row ) {
  * @see DB_Employee.prototype.isOnLeaveForDate
  * @see DB_Employee.prototype.isOnDayOffAfterNightShiftForDate
  * @see DB_Calendar.prototype.isWeekendShift @cached
- * @see DB_Calendar.prototype.getNextDayDate
+ * @see DB_Calendar.prototype.getNextDayDate @cached
  * @see DB_Calendar.prototype.getShiftEndDatetime
  * @see DB_Calendar.prototype.getShiftBeginDatetime
  * @see DB_Calendar.prototype.getPreviousDayDate

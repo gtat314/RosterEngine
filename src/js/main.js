@@ -147,6 +147,18 @@ function RosterEngine() {
      */
     this._findMasterCalendarRowBySlaveCalendarRowCache = new Map();
 
+    /**
+     * @property
+     * @private
+     * @type {Object}
+     */
+    this.holiday_connections = {
+        'Πρωτοχρονιά':      'Χριστούγεννα',
+        'Αγίου Πνεύματος':  'Καθαρά Δευτέρα',
+        '28η Οκτωβρίου':    '25η Μαρτίου',
+        'Άγιον Πάσχα':      'Άγιον Πάσχα'
+    };
+
 };
 
 /**
@@ -1272,6 +1284,7 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
 };
 
 /**
+ * @see HolidaysCollection.prototype.getNameByDate @cached
  * @see RosterEngine.prototype._can_employee_fill_this_shift
  * @param {EmployeesCollection} employees_collection 
  * @param {CalendarCollection} rows_collections 
@@ -1281,11 +1294,46 @@ RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( empl
 
     // console.log( 'run' );
 
+    let holidays = [];
+
     for ( let row of rows_collection ) {
 
         if ( cut_off_date > row.date ) {
 
             continue;
+
+        }
+
+        if ( row.shift_weekday === 7 ) {
+
+            let holiday_name = this.holidays.getNameByDate( row.date );
+
+            if ( holiday_name !== null && this.holiday_connections.hasOwnProperty( holiday_name ) ) {
+
+                let placed = false;
+
+                for ( let day of holidays ) {
+
+                    if ( day.getElement( 0 ).date === row.date ) {
+
+                        day.push( row );
+
+                        placed = true;
+
+                    }
+
+                }
+
+                if ( placed === false ) {
+
+                    let temp = new CalendarCollection([]);
+                    temp.push( row );
+
+                    holidays.push( temp );
+
+                }
+
+            }
 
         }
 
@@ -1303,11 +1351,42 @@ RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( empl
 
     }
 
+    for ( let day of holidays ) {
+
+        // console.log( holidays );
+
+        let source_holiday_date = this._get_source_holiday_date_by_date( day.getElement( 0 ).date );
+
+        this._remove_employees_that_worked_on_date_from_eligible_of_row_collection( this.holidayRows, day, source_holiday_date );
+
+    }
+
+};
+
+/**
+ * @method
+ * @private
+ * @param {CalendarCollection} source_row_collection 
+ * @param {CalendarCollection} target_row_collection 
+ * @param {String} date YYYY-MM-DD i imerominia tis source date
+ */
+RosterEngine.prototype._remove_employees_that_worked_on_date_from_eligible_of_row_collection = function( source_row_collection, target_row_collection, date ) {
+
+    for ( let source_row of source_row_collection ) {
+
+        if ( source_row.date === date ) {
+
+            target_row_collection.removeEmployeeFromEligible( source_row.employee_id );
+
+        }
+
+    }
+
 };
 
 /**
  * @see DB_Employee.prototype.prefersThisShift @cached
- * @see JunctionEmployeePool.prototype.exists
+ * @see JunctionEmployeePool.prototype.exists @cached
  * @see EmployeesCollection.prototype.sort_byHardShiftWeightAsc
  * @see RosterEngine.prototype._getPoolsForCalendarRow
  * @method
@@ -1428,7 +1507,7 @@ RosterEngine.prototype._assign_hard_shift = function( calendar_row ) {
 
 /**
  * @see DB_Employee.prototype.prefersThisShift @cached
- * @see JunctionEmployeePool.prototype.exists
+ * @see JunctionEmployeePool.prototype.exists @cached
  * @see EmployeesCollection.prototype.sort_byHardShiftWeightAsc
  * @see RosterEngine.prototype._getPoolsForCalendarRow
  * @method
@@ -1729,6 +1808,22 @@ RosterEngine.prototype._augmentEmployees = function() {
 
 };
 
+/**
+ * @see HolidaysCollection.prototype.getNameByDate @cached
+ * @see HolidaysCollection.prototype.getPreviousHolidayDate @cached
+ * @method
+ * @private
+ * @param {String} dateString YYYY-MM-DD
+ * @returns {String} YYYY-MM-DD
+ */
+RosterEngine.prototype._get_source_holiday_date_by_date = function( dateString ) {
+
+    let holiday_name = this.holidays.getNameByDate( dateString );
+
+    return this.holidays.getPreviousHolidayDate( dateString, this.holiday_connections[ holiday_name ] );
+
+}
+
 
 
 
@@ -1743,6 +1838,7 @@ RosterEngine.prototype._augmentEmployees = function() {
  * @see DB_Calendar.prototype.isPondSlave @cached
  * @see DB_Calendar.prototype.isUnnecessary @noncachable
  * @see DB_Calendar.prototype.isPondMaster @cached
+ * @see HolidaysCollection.prototype.getNameByDate @cached
  * @see EmployeesCollection.prototype.getById @noncachable
  * @see EmployeesCollection.prototype.removeById @noncachable
  * @see CalendarCollection.prototype.concatCollection
@@ -1788,6 +1884,18 @@ RosterEngine.prototype.calculate = function() {
 
         if ( todayCalendarRow.isLinkedTargetShift() ) {  //console.log( 'run1' );
 
+            if ( todayCalendarRow.shift_weekday === 7 ) {
+
+                let holiday_name = this.holidays.getNameByDate( todayCalendarRow.date );
+
+                if ( holiday_name !== null && this.holiday_connections.hasOwnProperty( holiday_name ) ) {
+
+                    continue;
+
+                }
+
+            }
+
             if ( todayCalendarRow.isFilled() ) { continue; }
 
             let employeeThatFilledTheSourceShift = this._findEmployeeThatFilledTheSourceShiftUsingTargetShift( todayCalendarRow ); //console.log( structuredClone( employeeThatFilledTheSourceShift ) );
@@ -1825,6 +1933,18 @@ RosterEngine.prototype.calculate = function() {
     for ( let row of this.futureCalendarRows ) {
 
         if ( row.isLinkedTargetShift() ) {
+
+            if ( row.shift_weekday === 7 ) {
+
+                let holiday_name = this.holidays.getNameByDate( row.date );
+
+                if ( holiday_name !== null && this.holiday_connections.hasOwnProperty( holiday_name ) ) {
+
+                    continue;
+
+                }
+
+            }
 
             if ( row.isFilled() ) { continue; }
 
@@ -1922,6 +2042,18 @@ RosterEngine.prototype.calculate = function() {
     for ( let row of this.futureCalendarRows ) {
 
         if ( row.isLinkedTargetShift() ) {
+
+            if ( row.shift_weekday === 7 ) {
+
+                let holiday_name = this.holidays.getNameByDate( row.date );
+
+                if ( holiday_name !== null && this.holiday_connections.hasOwnProperty( holiday_name ) ) {
+
+                    continue;
+
+                }
+
+            }
 
             if ( row.isFilled() ) { continue; }
 

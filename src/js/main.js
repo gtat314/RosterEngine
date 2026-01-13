@@ -1,6 +1,13 @@
 function RosterEngine() {
 
     /**
+     * @private
+     * @property
+     * @type {Number} int
+     */
+    this._HALL_ID = 21;
+
+    /**
      * @property
      * @public
      * @type {Number} int
@@ -1144,6 +1151,17 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
     // 2
     if ( shift_calendar_row.isWeekendShift() ) {
 
+        // department_id = 21, means Τμήμα Ελέγχου Ταξιδιωτών . if they change this, we are fucked
+        if ( shift_calendar_row.department_id === this._HALL_ID ) {
+
+            if ( employee._last_weekend_worked === true || employee._one_before_last_weekend_worked === true ) {
+
+                return false;
+
+            }
+
+        }
+
         // 2.1
         if ( this._employeeHasExcludedWeekendsFromHisPreferences( employee ) ) {
 
@@ -1241,6 +1259,17 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
     if ( shift_calendar_row.isNightShift() ) {
 
         // 7.1
+        if ( shift_calendar_row.isFriday() &&  shift_calendar_row.department_id === this._HALL_ID ) {
+
+            if ( employee._last_weekend_worked === true || employee._one_before_last_weekend_worked === true ) {
+
+                return false;
+
+            }
+
+        }
+
+        // 7.2
         if ( this._employeeHasExcludedNightsFromHisPreferences( employee ) ) {
 
             // 7.1.1
@@ -1248,7 +1277,7 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
 
         }
 
-        // 7.2
+        // 7.3
         for ( let row of mixed_calendar_rows ) {
 
             // 7.2.1
@@ -1748,9 +1777,12 @@ RosterEngine.prototype._augmentEmployees = function() {
     /**
      * this block allocates the _hard_shift_weight to all employees
      */
-    for ( employee of this.employees ) {
+    for ( let employee of this.employees ) {
 
         employee._hard_shift_weight = 0;
+        employee._weekends_worked = [];
+        employee._last_weekend_worked = false;
+        employee._one_before_last_weekend_worked = false;
 
         var previousCalendarShiftsThisEmployeeHasWorkedFor = this.olderCalendarRows.getAllForEmployeeId( employee.id );
 
@@ -1769,6 +1801,8 @@ RosterEngine.prototype._augmentEmployees = function() {
                 }
 
             } else if ( calendarRow.isWeekendShift() ) {
+
+                employee._weekends_worked.push( calendarRow.date );
 
                 if ( calendarRow.isMorningShift() ) {
 
@@ -1799,6 +1833,29 @@ RosterEngine.prototype._augmentEmployees = function() {
                     employee._hard_shift_weight += this.settings.getFloat( 'nightHolidayVariant' );
 
                 }
+
+            }
+
+        }
+
+        for ( let weekend_date of employee._weekends_worked ) {
+
+            let days_since_today = lib_datesDifferenceInDays( weekend_date, this.todayCalendarRows.getElement( 0 ).date );
+
+            if ( this.todayCalendarRows.getElement( 0 ).isWeekendShift() && days_since_today === 1 ) {
+
+                // it’s sunday and we are just looking at satturday
+                continue;
+
+            }
+
+            if ( days_since_today <= 7 ) {
+
+                employee._last_weekend_worked = true;
+
+            } else if ( days_since_today <= 14 ) {
+
+                employee._one_before_last_weekend_worked = true;
 
             }
 

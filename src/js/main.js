@@ -1783,20 +1783,29 @@ RosterEngine.prototype._augmentEmployees = function() {
         employee._weekends_worked = [];
         employee._last_weekend_worked = false;
         employee._one_before_last_weekend_worked = false;
+        employee._shifts_worked = new Map();
 
         var previousCalendarShiftsThisEmployeeHasWorkedFor = this.olderCalendarRows.getAllForEmployeeId( employee.id );
 
         for ( let calendarRow of previousCalendarShiftsThisEmployeeHasWorkedFor ) {
 
+            /**
+             * @description den kanoume kateutheian assign sto employee._hard_shift_weight kai to kanoume assign se auto to variable
+             *  gia na elegksoume me ton parakatw algorithmo gia tin pithanotita na exei kanei pollaples vardies mesa stin idia mera kai na kratisoume mono to hard shift weight tis pio dyskolis vardias
+             *  o logos pou to kanoume auto einai oti yparxoun ta pond shifts pou vazoyn pollaples vardies ston idio ypallilo
+             *  kai polles fores oi xristes tis efarmogis vazoune kataxristika ton idio ypallilo se diaforetika wraria
+             */
+            let rowHardShiftWeight = 0;
+
             if ( calendarRow.isEverydayShift() ) {
 
                 if ( calendarRow.isEveningShift() ) {
 
-                    employee._hard_shift_weight += this.settings.getFloat( 'eveningVariant' );
+                    rowHardShiftWeight = this.settings.getFloat( 'eveningVariant' );
 
                 } else if ( calendarRow.isNightShift() ) {
 
-                    employee._hard_shift_weight += this.settings.getFloat( 'nightVariant' );
+                    rowHardShiftWeight = this.settings.getFloat( 'nightVariant' );
 
                 }
 
@@ -1806,15 +1815,15 @@ RosterEngine.prototype._augmentEmployees = function() {
 
                 if ( calendarRow.isMorningShift() ) {
 
-                    employee._hard_shift_weight += this.settings.getFloat( 'morningSkVariant' );
+                    rowHardShiftWeight = this.settings.getFloat( 'morningSkVariant' );
 
                 } else if ( calendarRow.isEveningShift() ) {
 
-                    employee._hard_shift_weight += this.settings.getFloat( 'eveningSkVariant' );
+                    rowHardShiftWeight = this.settings.getFloat( 'eveningSkVariant' );
 
                 } else if ( calendarRow.isNightShift() ) {
 
-                    employee._hard_shift_weight += this.settings.getFloat( 'nightSkVariant' );
+                    rowHardShiftWeight = this.settings.getFloat( 'nightSkVariant' );
 
                 }
 
@@ -1822,17 +1831,41 @@ RosterEngine.prototype._augmentEmployees = function() {
 
                 if ( calendarRow.isMorningShift() ) {
 
-                    employee._hard_shift_weight += this.settings.getFloat( 'morningHolidayVariant' );
+                    rowHardShiftWeight = this.settings.getFloat( 'morningHolidayVariant' );
 
                 } else if ( calendarRow.isEveningShift() ) {
 
-                    employee._hard_shift_weight += this.settings.getFloat( 'eveningHolidayVariant' );
+                    rowHardShiftWeight = this.settings.getFloat( 'eveningHolidayVariant' );
 
                 } else if ( calendarRow.isNightShift() ) {
 
-                    employee._hard_shift_weight += this.settings.getFloat( 'nightHolidayVariant' );
+                    rowHardShiftWeight = this.settings.getFloat( 'nightHolidayVariant' );
 
                 }
+
+            }
+
+            /**
+             * @description o parakatw algorithmos
+             */
+            if ( employee._shifts_worked.has( calendarRow.date ) ) {
+
+                if ( employee._shifts_worked.get( calendarRow.date ) >= rowHardShiftWeight ) {
+
+                    continue;
+
+                } else {
+
+                    employee._hard_shift_weight -= employee._shifts_worked.get( calendarRow.date );
+                    employee._shifts_worked.set( calendarRow.date, rowHardShiftWeight );
+                    employee._hard_shift_weight += rowHardShiftWeight;
+
+                }
+
+            } else {
+
+                employee._shifts_worked.set( calendarRow.date, rowHardShiftWeight );
+                employee._hard_shift_weight += rowHardShiftWeight;
 
             }
 

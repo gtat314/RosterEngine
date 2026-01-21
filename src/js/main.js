@@ -1316,7 +1316,7 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
  * @see HolidaysCollection.prototype.getNameByDate @cached
  * @see RosterEngine.prototype._can_employee_fill_this_shift
  * @param {EmployeesCollection} employees_collection 
- * @param {CalendarCollection} rows_collections 
+ * @param {CalendarCollection} rows_collection
  * @param {String} cut_off_date 
  */
 RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( employees_collection, rows_collection, cut_off_date ) {
@@ -1328,6 +1328,12 @@ RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( empl
     for ( let row of rows_collection ) {
 
         if ( cut_off_date > row.date ) {
+
+            continue;
+
+        }
+
+        if ( row.isFilled() ) {
 
             continue;
 

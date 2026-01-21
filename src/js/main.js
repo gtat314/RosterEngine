@@ -2109,6 +2109,14 @@ RosterEngine.prototype.calculate = function() {
 
             }
 
+            for ( let row of future_linked_source_nightshifts ) {
+
+                if ( assignedEmployee === null ) { break; }
+
+                row._eligibleEmployees.removeById( assignedEmployee.id );
+
+            }
+
             future_linked_source_nightshifts.removeById( future_linked_source_nightshifts.getElement( 0 ).id );
 
             future_linked_source_nightshifts.sortByEligibleEmployeesAsc();

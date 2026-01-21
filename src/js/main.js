@@ -2441,6 +2441,8 @@ RosterEngine.prototype.calculate = function() {
 
     }
 
+    this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date );
+
 
 
 

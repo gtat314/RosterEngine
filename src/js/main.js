@@ -1130,7 +1130,7 @@ RosterEngine.prototype._getPoolsForCalendarRow = function( calendar_row ) {
  * @param {CalendarCollection} mixed_calendar_rows 
  * @returns {Boolean}
  */
-RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift_calendar_row, mixed_calendar_rows ) {
+RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift_calendar_row, mixed_calendar_rows, flag_11HoursAreConsidered = true ) {
 
     // console.log( 'run' );
 
@@ -1224,7 +1224,10 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
             if ( row.employee_id === employee.id ) {
 
                 // 6.2.1.1
-                if ( lib_getHoursBetween( shift_calendar_row.getShiftEndDatetime(), row.getShiftBeginDatetime() ) < 11 ) {
+                if ( 
+                    ( lib_getHoursBetween( shift_calendar_row.getShiftEndDatetime(), row.getShiftBeginDatetime() ) < 11 ) &&
+                    flag_11HoursAreConsidered === true
+                ) {
 
                     // 6.2.1.1.1
                     return false;
@@ -1242,7 +1245,10 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
             if ( row.employee_id === employee.id ) {
 
                 // 6.3.1.1
-                if ( lib_getHoursBetween( row.getShiftEndDatetime(), shift_calendar_row.getShiftBeginDatetime() ) < 11 ) {
+                if (
+                    ( lib_getHoursBetween( row.getShiftEndDatetime(), shift_calendar_row.getShiftBeginDatetime() ) < 11 ) &&
+                    flag_11HoursAreConsidered === true
+                ) {
 
                     // 6.3.1.1.1
                     return false;

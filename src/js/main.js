@@ -1205,6 +1205,7 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
     for ( let row of mixed_calendar_rows ) {
 
         // 6.1
+        // tsekarei an exei mpei se allo row tis idias imerominias
         if ( row.date === shift_calendar_row.date ) {
 
             // 6.1.1

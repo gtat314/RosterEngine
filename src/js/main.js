@@ -8,6 +8,13 @@ function RosterEngine() {
     this._HALL_ID = 21;
 
     /**
+     * @private
+     * @property
+     * @type {Boolean}
+     */
+    this._11_HOUR_FLAG = false;
+
+    /**
      * @property
      * @public
      * @type {Number} int
@@ -1128,6 +1135,7 @@ RosterEngine.prototype._getPoolsForCalendarRow = function( calendar_row ) {
  * @param {DB_Employee} employee 
  * @param {DB_Calendar} shift_calendar_row 
  * @param {CalendarCollection} mixed_calendar_rows 
+ * @param {Boolean} flag_11HoursAreConsidered
  * @returns {Boolean}
  */
 RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift_calendar_row, mixed_calendar_rows, flag_11HoursAreConsidered = true ) {
@@ -1325,8 +1333,9 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
  * @param {EmployeesCollection} employees_collection 
  * @param {CalendarCollection} rows_collection
  * @param {String} cut_off_date 
+ * @param {Boolean} flag_11HoursAreConsidered
  */
-RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( employees_collection, rows_collection, cut_off_date ) {
+RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( employees_collection, rows_collection, cut_off_date, flag_11HoursAreConsidered = true ) {
 
     // console.log( 'run' );
 
@@ -1383,7 +1392,7 @@ RosterEngine.prototype._calculate_and_store_eligibility_on_rows = function( empl
 
         for ( let employee of employees_collection ) {
 
-            if ( this._can_employee_fill_this_shift( employee, row, rows_collection ) ) {
+            if ( this._can_employee_fill_this_shift( employee, row, rows_collection, flag_11HoursAreConsidered ) ) {
 
                 row._eligibleEmployees.push( employee );
 
@@ -2497,6 +2506,125 @@ RosterEngine.prototype.calculate = function() {
 
             today_unnecessary_shift_rows.sortByEligibleEmployeesAsc();
 
+        }
+
+    }
+
+    if ( this._11_HOUR_FLAG === false ) {
+
+        this._calculate_and_store_eligibility_on_rows( this.employees, this.mixedCalendarRows, this.todayCalendarRows.getElement( 0 ).date, this._11_HOUR_FLAG );
+
+        let empty_pond_slave_rows = new CalendarCollection([]);
+        let empty_necessary_rows = new CalendarCollection([]);
+        let empty_unnecessaty_rows = new CalendarCollection([]);
+        let all_empty_rows = new CalendarCollection( [] );
+
+        for ( let row of this.todayCalendarRows ){
+        
+            if ( row.isFilled() ){
+
+                continue;
+
+            }
+            
+            if( row.isPondSlave() ){
+            
+                empty_pond_slave_rows.push( row );
+                all_empty_rows.push( row );
+                continue;
+                
+            }
+            
+            if ( row.isUnnecessary() ){
+                
+                empty_unnecessaty_rows.push( row );
+                all_empty_rows.push( row );
+                continue;
+                
+            }
+                
+            empty_necessary_rows.push( row );
+            all_empty_rows.push( row );
+            
+        }
+        
+        //try to fill the necessary rows that are left first
+        {
+            empty_necessary_rows.sortByEligibleEmployeesAsc();
+            
+            while( empty_necessary_rows.length > 0 ){
+            
+                let employee_to_fill_row = this._assign_employee( empty_necessary_rows.getElement( 0 ), this.futureCalendarRows );
+                
+                this._allocate( employee_to_fill_row, empty_necessary_rows.getElement( 0 ) );
+                
+                empty_necessary_rows.removeById( empty_necessary_rows.getElement( 0 ).id );
+                
+                for ( let row of all_empty_rows ) {
+                
+                    if ( employee_to_fill_row === null ) { break; }
+                    
+                    row._eligibleEmployees.removeById( employee_to_fill_row.id );
+                
+                }
+                
+                empty_necessary_rows.sortByEligibleEmployeesAsc();
+                
+            }
+        }
+        
+        //try to fill the unnecessary rows that are left last
+        {
+            empty_unnecessaty_rows.sortByEligibleEmployeesAsc();
+            
+            while( empty_unnecessaty_rows.length > 0 ){
+            
+                let employee_to_fill_row = this._assign_employee( empty_unnecessaty_rows.getElement( 0 ), this.futureCalendarRows );
+                
+                this._allocate( employee_to_fill_row, empty_unnecessaty_rows.getElement( 0 ) );
+                
+                empty_unnecessaty_rows.removeById( empty_unnecessaty_rows.getElement( 0 ).id );
+                
+                for ( let row of all_empty_rows ) {
+                
+                    if ( employee_to_fill_row === null ) { break; }
+                    
+                    row._eligibleEmployees.removeById( employee_to_fill_row.id );
+                
+                }
+                
+                empty_unnecessaty_rows.sortByEligibleEmployeesAsc();
+                
+            }
+        }
+        
+        // try to fill the pond slaves
+        {
+            
+            while( empty_pond_slave_rows.length > 0 ){
+                
+                let masterCalendarRow = this._findMasterCalendarRowBySlaveCalendarRow( empty_pond_slave_rows.getElement( 0 ) );
+                
+                if ( masterCalendarRow === null ) { 
+                    
+                    empty_pond_slave_rows.removeById( empty_pond_slave_rows.getElement( 0 ).id );
+                    continue; 
+                    
+                }
+                
+                if ( masterCalendarRow.isFilled() === false ) {
+                
+                    empty_pond_slave_rows.removeById( empty_pond_slave_rows.getElement( 0 ).id );
+                    continue; 
+                
+                }
+                
+                let employeeThatFilledTheMasterCalendarRow = this.employees.getById( masterCalendarRow.employee_id );
+                this._allocate( employeeThatFilledTheMasterCalendarRow, empty_pond_slave_rows.getElement( 0 ) )
+                empty_pond_slave_rows.removeById( empty_pond_slave_rows.getElement( 0 ).id );
+                
+            }
+            
         }
 
     }

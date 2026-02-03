@@ -651,7 +651,7 @@ RosterEngine.prototype._augmentCalendarRows = function ( calendarCollection, emp
         row._isALinkedShift         = false;
         row._isALinkedTargetShift   = false;
         row._linkSourceRow          = null;
-        row._eligibleEmployees      = null;
+        row._eligibleEmployees      = new EmployeesCollection([]);
         row._days_after             = null;
         row._days_total             = null;
 

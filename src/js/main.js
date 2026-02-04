@@ -2017,12 +2017,13 @@ RosterEngine.prototype.calculate = function() {
             /**
              * @todo se periptwsi pou diamartyrithoun tha vgaloume to eligibility check,
              * epeidi twra gia na kanei allocate ton employee pou eixe mpei sto source, prepei na einai eligible sto target
+             * @description telika diamartyrithikan 2026-02-04
              */
-            if ( todayCalendarRow._eligibleEmployees.getById( employeeThatFilledTheSourceShift.id ) ) {
+            // if ( todayCalendarRow._eligibleEmployees.getById( employeeThatFilledTheSourceShift.id ) ) {
 
                 this._allocate( employeeThatFilledTheSourceShift, todayCalendarRow );
 
-            }
+            // }
 
         }
 

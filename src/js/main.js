@@ -1631,47 +1631,51 @@ RosterEngine.prototype._assign_easy_shift = function( calendar_row ) {
 
     }
 
-    let role_pools_by_preference2 = [];
+    /**
+     * @description ginane excludive ta prwina tis kathimerinis. afinoume ton kwdika kai an den paraponethei kanenas ton afairoume
+     * @todoist https://app.todoist.com/app/task/remove-code-about-exclusive-shifts-6fwrwr22mRMpjFVj
+     */
+    // let role_pools_by_preference2 = [];
 
-    for ( let pool of calendar_row_pools ) {
+    // for ( let pool of calendar_row_pools ) {
 
-        let pool_members = new EmployeesCollection([]);
+    //     let pool_members = new EmployeesCollection([]);
 
-        for ( let employee of unwilling_employees ) {
+    //     for ( let employee of unwilling_employees ) {
 
-            if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
+    //         if ( this.junctionEmployeePool.exists( employee.id, pool.id ) ) {
 
-                pool_members.push( employee );
+    //             pool_members.push( employee );
 
-            }
+    //         }
 
-        }
+    //     }
 
-        role_pools_by_preference2.push( pool_members );
+    //     role_pools_by_preference2.push( pool_members );
 
-    }
+    // }
 
-    for ( let pool_by_preference of role_pools_by_preference2 ) {
+    // for ( let pool_by_preference of role_pools_by_preference2 ) {
 
-        if ( pool_by_preference.length === 0 ) { continue; }
+    //     if ( pool_by_preference.length === 0 ) { continue; }
 
-        pool_by_preference.sort_byHardShiftWeightDesc();
+    //     pool_by_preference.sort_byHardShiftWeightDesc();
 
-        let selected_employee = pool_by_preference.getElement( 0 );
+    //     let selected_employee = pool_by_preference.getElement( 0 );
 
-        for ( let employee of pool_by_preference ) {
+    //     for ( let employee of pool_by_preference ) {
 
-            if ( employee.inveteracy_coefficient > selected_employee.inveteracy_coefficient ) {
+    //         if ( employee.inveteracy_coefficient > selected_employee.inveteracy_coefficient ) {
 
-                selected_employee = employee;
+    //             selected_employee = employee;
 
-            }
+    //         }
 
-        }
+    //     }
 
-        return selected_employee;
+    //     return selected_employee;
 
-    }
+    // }
 
     return null;
 

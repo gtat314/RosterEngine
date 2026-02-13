@@ -1273,6 +1273,16 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
     // 7
     if ( shift_calendar_row.isNightShift() ) {
 
+        // 7.0
+        // If it's a night shift and tomorrow the employee is on leave he can't go on the night shift
+        let tomorrow_date = shift_calendar_row.getNextDayDate();
+        
+        if ( employee.isOnLeaveForDate( this.leaves, tomorrow_date ) ) {
+        
+          return false;
+    
+        }
+
         // 7.1
         if ( shift_calendar_row.isFriday() &&  shift_calendar_row.department_id === this._HALL_ID ) {
 

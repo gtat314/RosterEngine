@@ -854,6 +854,8 @@ RosterEngine.prototype._getMostRecentCalendarShift = function( currentDateStr, s
 };
 
 /**
+ * @todo refactor sto augment employee gia na mi symvainei 2 fores
+ * @todoist https://app.todoist.com/app/task/refactor-sto-augment-employee-gia-na-mi-symvainei-2-fores-6g2WhCqjXw4hxVXC
  * @see ShiftsCollection.prototype.getByIdCached
  * @see EmployeesCollection.getByIdCached
  * @see RosterEngine.prototype._getMostRecentCalendarShift
@@ -1306,10 +1308,14 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
         for ( let row of mixed_calendar_rows ) {
 
             // 7.2.1
-            if ( row.date > shift_calendar_row.getPreviousFridayDate() ) {
+            // if ( row.date > shift_calendar_row.getPreviousFridayDate() ) {
+            // @description gia ton kanona tis mias nyxterinis ana 8 imeres
+            if ( row.date > this._getNextDateByDays( shift_calendar_row.date, -8 ) ) {
 
                 // 7.2.1.1
-                if ( row.date < shift_calendar_row.getNextSaturdayDate() ) {
+                // if ( row.date < shift_calendar_row.getNextSaturdayDate() ) {
+                // @description gia ton kanona tis mias nyxterinis ana 8 imeres
+                if ( row.date < this._getNextDateByDays( shift_calendar_row.date, 8 ) ) {
 
                     // 7.2.1.1.1
                     if ( row.isNightShift() ) {

@@ -861,24 +861,14 @@ RosterEngine.prototype._getMostRecentCalendarShift = function( currentDateStr, s
  * @see RosterEngine.prototype._getMostRecentCalendarShift
  * @method
  * @private
- * @param {DB_Calendar} row 
+ * @param {DB_Calendar} targetCalendarRow 
  * @returns {DB_Employee|null}
  */
-RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = function( row ) {
+RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = function( targetCalendarRow ) {
 
     // console.log( 'run' );
 
-    if ( row.shift_id === null ) { return null; }
-
-    var targetShift = this.shifts.getByIdCached( row.shift_id );
-
-    if ( targetShift === null ) { return null; }
-
-    if ( targetShift.propagate_from_shift_id === null ) { return null; }
-
-    var sourceShift = this.shifts.getByIdCached( targetShift.propagate_from_shift_id );
-
-    var sourceCalendarRow = this._getMostRecentCalendarShift( row.date, sourceShift.id );
+    var sourceCalendarRow = this.mixedCalendarRows.getLinkSourceByLinkTarget( targetCalendarRow, this.shifts );
 
     if ( sourceCalendarRow === null ) { return null; }
 

@@ -856,9 +856,8 @@ RosterEngine.prototype._getMostRecentCalendarShift = function( currentDateStr, s
 /**
  * @todo refactor sto augment employee gia na mi symvainei 2 fores
  * @todoist https://app.todoist.com/app/task/refactor-sto-augment-employee-gia-na-mi-symvainei-2-fores-6g2WhCqjXw4hxVXC
- * @see ShiftsCollection.prototype.getByIdCached
+ * @see CalendarCollection.getLinkSourceByLinkTarget
  * @see EmployeesCollection.getByIdCached
- * @see RosterEngine.prototype._getMostRecentCalendarShift
  * @method
  * @private
  * @param {DB_Calendar} targetCalendarRow 

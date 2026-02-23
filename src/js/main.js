@@ -1147,6 +1147,24 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
     
     }
 
+    // 1.c
+    // if ( shift_calendar_row.isLinkedSourceShift() ) {
+
+    //     var target_shift_row = mixed_calendar_rows.getLinkTargetByLinkSource( shift_calendar_row, this.shifts );
+
+    //     if ( target_shift_row !== null ) {
+
+    //         // if ( this._can_employee_fill_this_shift( employee, target_shift_row, mixed_calendar_rows ) === false ) {
+    //         if ( employee.prefersThisShift( target_shift_row, this.shifts, this.employeePreferences ) === false ) {
+
+    //             return false;
+
+    //         }
+
+    //     }
+        
+    // }
+
     // 2
     if ( shift_calendar_row.isWeekendShift() ) {
 

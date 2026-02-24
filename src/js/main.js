@@ -867,7 +867,19 @@ RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = f
 
     // console.log( 'run' );
 
-    var sourceCalendarRow = this.mixedCalendarRows.getLinkSourceByLinkTarget( targetCalendarRow, this.shifts );
+    // var sourceCalendarRow = this.mixedCalendarRows.getLinkSourceByLinkTarget( targetCalendarRow, this.shifts );
+
+    if ( row.shift_id === null ) { return null; }
+
+    var targetShift = this.shifts.getByIdCached( row.shift_id );
+
+    if ( targetShift === null ) { return null; }
+
+    if ( targetShift.propagate_from_shift_id === null ) { return null; }
+
+    var sourceShift = this.shifts.getByIdCached( targetShift.propagate_from_shift_id );
+
+    var sourceCalendarRow = this._getMostRecentCalendarShift( row.date, sourceShift.id );
 
     if ( sourceCalendarRow === null ) { return null; }
 
@@ -1148,22 +1160,22 @@ RosterEngine.prototype._can_employee_fill_this_shift = function( employee, shift
     }
 
     // 1.c
-    if ( shift_calendar_row.isLinkedSourceShift() ) {
+    // if ( shift_calendar_row.isLinkedSourceShift() ) {
 
-        var target_shift_row = mixed_calendar_rows.getLinkTargetByLinkSource( shift_calendar_row, this.shifts );
+    //     var target_shift_row = mixed_calendar_rows.getLinkTargetByLinkSource( shift_calendar_row, this.shifts );
 
-        if ( target_shift_row !== null ) {
+    //     if ( target_shift_row !== null ) {
 
-            // if ( this._can_employee_fill_this_shift( employee, target_shift_row, mixed_calendar_rows ) === false ) {
-            if ( employee.prefersThisShift( target_shift_row, this.shifts, this.employeePreferences ) === false ) {
+    //         // if ( this._can_employee_fill_this_shift( employee, target_shift_row, mixed_calendar_rows ) === false ) {
+    //         if ( employee.prefersThisShift( target_shift_row, this.shifts, this.employeePreferences ) === false ) {
 
-                return false;
+    //             return false;
 
-            }
+    //         }
 
-        }
+    //     }
         
-    }
+    // }
 
     // 2
     if ( shift_calendar_row.isWeekendShift() ) {

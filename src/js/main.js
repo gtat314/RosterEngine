@@ -869,9 +869,9 @@ RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = f
 
     // var sourceCalendarRow = this.mixedCalendarRows.getLinkSourceByLinkTarget( targetCalendarRow, this.shifts );
 
-    if ( row.shift_id === null ) { return null; }
+    if ( targetCalendarRow.shift_id === null ) { return null; }
 
-    var targetShift = this.shifts.getByIdCached( row.shift_id );
+    var targetShift = this.shifts.getByIdCached( targetCalendarRow.shift_id );
 
     if ( targetShift === null ) { return null; }
 
@@ -879,7 +879,7 @@ RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = f
 
     var sourceShift = this.shifts.getByIdCached( targetShift.propagate_from_shift_id );
 
-    var sourceCalendarRow = this._getMostRecentCalendarShift( row.date, sourceShift.id );
+    var sourceCalendarRow = this._getMostRecentCalendarShift( targetCalendarRow.date, sourceShift.id );
 
     if ( sourceCalendarRow === null ) { return null; }
 

@@ -1738,18 +1738,18 @@ RosterEngine.prototype._autofill_future_nightshifts = function( employees, calen
 
     // an einai paraskeui den perimenoume na gyrisei katholoue future night shifts gt den elegxei tis epomenis evdomadas,
     // opote parakatw diafora pragmata tha einai undefined
-    if ( this.todayCalendarRows.getElement( 0 ).isFriday() ) {
+    // if ( this.todayCalendarRows.getElement( 0 ).isFriday() ) {
 
-        return;
+    //     return;
 
-    }
+    // }
 
     let future_nightshifts = new CalendarCollection([]);
 
     for ( let row of calendar_rows ) {
 
-        if ( row.isNightShift() && row.isNecessary() && row.date < this.todayCalendarRows.getElement( 0 ).getNextSaturdayDate() && row.date > this.todayCalendarRows.getElement( 0 ).date ) {
-
+        // if ( row.isNightShift() && row.isNecessary() && row.date < this.todayCalendarRows.getElement( 0 ).getNextSaturdayDate() && row.date > this.todayCalendarRows.getElement( 0 ).date ) {
+        if ( row.isNightShift() && row.isNecessary() && row.isPondSlave() === false && row.date <= this.todayCalendarRows.getElement( 0 ).getNextSaturdayDate() && row.date > this.todayCalendarRows.getElement( 0 ).date ) {
             if ( row.isNotFilled() ) {
 
                 future_nightshifts.push( row );
@@ -1792,10 +1792,25 @@ RosterEngine.prototype._autofill_future_nightshifts = function( employees, calen
 
         let shift_to_fill_employee = this._assign_employee( shift_to_fill, calendar_rows );
 
+        // if ( shift_to_fill_employee !== null ) {
+
+        //     shift_to_fill.employee_id   = shift_to_fill_employee.id;
+        //     shift_to_fill.employee_name = shift_to_fill_employee.getFullname();
+
+        // }
+
         if ( shift_to_fill_employee !== null ) {
 
-            shift_to_fill.employee_id   = shift_to_fill_employee.id;
-            shift_to_fill.employee_name = shift_to_fill_employee.getFullname();
+            if( shift_to_fill.date != this.todayCalendarRows.getElement( 0 ).date ) {
+            
+                shift_to_fill.employee_id   = shift_to_fill_employee.id;
+                shift_to_fill.employee_name = shift_to_fill_employee.getFullname();
+            
+            } else {
+            
+                this._allocate( shift_to_fill_employee, shift_to_fill );
+            
+            }
 
         }
 
@@ -2257,43 +2272,43 @@ RosterEngine.prototype.calculate = function() {
      * gemizw necessary night unfilled non pond slave shifts gia simera
      * xrisimopoioume to isPondSlave gt theloume na gemisoume ola osa den einai se ponds KAI an einai se pond mono tous pond masters
      */
-    {
+    // {
 
-        let today_necessary_night_shift_rows = new CalendarCollection([]);
+    //     let today_necessary_night_shift_rows = new CalendarCollection([]);
 
-        for ( let row of this.todayCalendarRows ) {
+    //     for ( let row of this.todayCalendarRows ) {
 
-            if ( row.isNecessary() && row.isNightShift() && row.isNotFilled() && row.isPondSlave() === false ) {
+    //         if ( row.isNecessary() && row.isNightShift() && row.isNotFilled() && row.isPondSlave() === false ) {
 
-                today_necessary_night_shift_rows.push( row );
+    //             today_necessary_night_shift_rows.push( row );
 
-            }
+    //         }
 
-        }
+    //     }
 
-        today_necessary_night_shift_rows.sortByEligibleEmployeesAsc();
+    //     today_necessary_night_shift_rows.sortByEligibleEmployeesAsc();
 
-        while ( today_necessary_night_shift_rows.length > 0 ) {
+    //     while ( today_necessary_night_shift_rows.length > 0 ) {
 
-            let employee_to_fill_row = this._assign_employee( today_necessary_night_shift_rows.getElement( 0 ), this.futureCalendarRows );
+    //         let employee_to_fill_row = this._assign_employee( today_necessary_night_shift_rows.getElement( 0 ), this.futureCalendarRows );
 
-            this._allocate( employee_to_fill_row, today_necessary_night_shift_rows.getElement( 0 ) );
+    //         this._allocate( employee_to_fill_row, today_necessary_night_shift_rows.getElement( 0 ) );
 
-            today_necessary_night_shift_rows.removeById( today_necessary_night_shift_rows.getElement( 0 ).id );
+    //         today_necessary_night_shift_rows.removeById( today_necessary_night_shift_rows.getElement( 0 ).id );
 
-            for ( let row of today_necessary_night_shift_rows ) {
+    //         for ( let row of today_necessary_night_shift_rows ) {
 
-                if ( employee_to_fill_row === null ) { break; }
+    //             if ( employee_to_fill_row === null ) { break; }
 
-                row._eligibleEmployees.removeById( employee_to_fill_row.id );
+    //             row._eligibleEmployees.removeById( employee_to_fill_row.id );
 
-            }
+    //         }
 
-            today_necessary_night_shift_rows.sortByEligibleEmployeesAsc();
+    //         today_necessary_night_shift_rows.sortByEligibleEmployeesAsc();
 
-        }
+    //     }
 
-    }
+    // }
 
     /**
      * @todo pithano optimization me antikatastasi tou _calculate_and_store_eligibility_on_rows me to calendarCollection.removeEmployeeFromEligible

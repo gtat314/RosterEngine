@@ -346,7 +346,7 @@ RosterEngine.prototype.set_roles = function( roles ) {
 
     if ( this.roles === null ) {
 
-        this.roles = new RolesCollection( roles );
+        this.roles = new RolesCollection( roles ).order( 'sort_index', 'ASC' );
 
     }
 

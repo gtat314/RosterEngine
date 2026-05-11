@@ -331,7 +331,7 @@ RosterEngine.prototype.set_pools = function( pools ) {
 
     if ( this.pools === null ) {
 
-        this.pools = new PoolsCollection( pools );
+        this.pools = new PoolsCollection( pools ).order( 'name', 'ASC' );
 
     }
 

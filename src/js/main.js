@@ -275,7 +275,7 @@ RosterEngine.prototype.set_holidays = function( holidays ) {
 
     if ( this.holidays === null ) {
 
-        this.holidays = new HolidaysCollection( holidays );
+        this.holidays = new HolidaysCollection( holidays ).order( 'date', 'ASC' );
 
     }
 

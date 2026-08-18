@@ -273,6 +273,24 @@ RosterEngine.prototype.set_holidayRows = function (rows) {
 };
 
 /**
+ * this.settings is pretty much an object after hydration. its form is along these lines:
+ * 
+ * this.settings = {
+ *      dayoffsPerWeek: "2",
+ *      eveningHolidayVariant: "4",
+ *      eveningSkVariant: "4",
+ *      eveningVariant: "0",
+ *      morningHolidayVariant: "4",
+ *      morningSkVariant: "4",
+ *      nightHolidayVariant: "8",
+ *      nightParaskeuiVariant: "3",
+ *      nightSavvatoVariant: "0",
+ *      nightKyriakiVariant: "0",
+ *      nightVariant: "8"
+ * };
+ * 
+ * WARNING: any numerical values, are presented as strings at this point, despite being numerical. hence the quotation marks around the numbers
+ * 
  * @method
  * @public
  * @param {Object} settings 

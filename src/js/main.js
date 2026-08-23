@@ -222,6 +222,21 @@ function RosterEngine() {
         '25η Μαρτίου': [-1]
     };
 
+    this.bitflags = {
+
+        'GOOD'                          : 0b0,
+        'IS_ON_LEAVE'                   : 0b1,
+        'HARD_SHIFT_EXCLUSION'          : 0b10,
+        'HOLIDAY_ANAVAILABILITY'        : 0b100,
+        'WORKS_SAME_DAY'                : 0b1000,
+        'WORKED_PREVIOUS_NIGHT'         : 0b10000,
+        'LESS_THAN_11_HOURS'            : 0b100000,
+        'WORKS_NEXT_DAY_AND_NIGHTSHIFT' : 0b1000000,
+        'UNACCEPTABLE_NYX_SCORE'        : 0b10000000,
+        'UNACCEPTABLE_SKO_SCORE'        : 0b100000000,
+
+    }
+
 };
 
 /**
@@ -550,15 +565,15 @@ RosterEngine.prototype.save = function (callbackFunc) {
  */
 RosterEngine.prototype.get_weekend_start = function (row) {
 
-    if (row.shift_weekday == 5) {
+    if ( row.isFriday() ) {
 
         return row.date;
 
-    } else if (row.shift_weekday == 6) {
+    } else if ( row.isSaturday() ) {
 
         return lib_getDateByIntegerOffset(row.date, -1);
 
-    } else if (row.shift_weekday == 0) {
+    } else if ( row.isSunday() ) {
 
         return lib_getDateByIntegerOffset(row.date, -2);
 
@@ -574,15 +589,15 @@ RosterEngine.prototype.get_weekend_start = function (row) {
  */
 RosterEngine.prototype.get_weekend_end = function (row) {
 
-    if (row.shift_weekday == 5) {
+    if ( row.isFriday() ) {
 
         return lib_getDateByIntegerOffset(row.date, 2);
 
-    } else if (row.shift_weekday == 6) {
+    } else if ( row.isSaturday() ) {
 
         return lib_getDateByIntegerOffset(row.date, 1);
 
-    } else if (row.shift_weekday == 0) {
+    } else if ( row.isSunday() ) {
 
         return row.date;
 
@@ -599,7 +614,6 @@ RosterEngine.prototype.get_weekend_end = function (row) {
  * @see ShiftsCollection.prototype.isLinkedShift
  * @see ShiftsCollection.prototype.isLinkedTargetShift
  * @see ShiftPondCollection.prototype.isPondMasterShift
- * @see RosterEngine.prototype._getMostRecentCalendarShift
  * @method
  * @public
  * @param {CalendarCollection} activeCalendarCollection
@@ -617,6 +631,30 @@ RosterEngine.prototype._augmentPayloadCalendarRows = function (activeCalendarCol
     let dictionary_ponds = {};
 
     for (let row of calendarCollection) {
+
+        row.shift_weight = 0;
+
+        if ( row.isNightShift() ) {
+
+            if ( row.isFriday() ) {
+
+                row.shift_weight = parseFloat( this.settings.nightParaskeuiVariant );
+ 
+            }
+
+            if ( row.isSaturday() ) {
+
+                row.shift_weight = parseFloat( this.settings.nightSavvatoVariant );
+
+            }
+
+            if ( row.isSunday() ) {
+
+                row.shift_weight = parseFloat( this.settings.nightKyriakiVariant );
+
+            }
+
+        }
 
         if (row.date < cutoff_date) {
 
@@ -832,7 +870,7 @@ RosterEngine.prototype._augmentPayloadCalendarRows = function (activeCalendarCol
  */
 RosterEngine.prototype._allocate = function (employee, calendarRow, not_future = true) {
 
-    // console.log( 'run' );
+    // console.log( 'run allocate' );
 
     if (employee === null) {
 
@@ -918,6 +956,21 @@ RosterEngine.prototype._deallocate = function (employee, calendarRow) {
     if (allocationIndex !== -1) {
 
         this._allocations.splice(allocationIndex, 1);
+
+    }
+
+    if ( calendarRow.isNightShift() ) {
+
+        employee._current_provisional_nights.removeById(calendarRow.id);
+        employee._future_provisional_nights.removeById(calendarRow.id);
+
+    }
+
+    if ( calendarRow.isWeekendShift() ) {
+
+        employee._current_provisional_weekends.removeById(calendarRow.id);
+        employee._future_provisional_weekends.removeById(calendarRow.id);
+        employee._all_weekends.removeById(calendarRow.id);
 
     }
 
@@ -1431,7 +1484,6 @@ RosterEngine.prototype._getNextDateByDays = function (dateString, daysNum) {
 
 /**
  * @see lib_getPreviousDate
- * @see CalendarCollection.prototype.getByDateAndShiftId
  * @param {String} currentDateStr YYYY-MM-DD
  * @param {Number} shiftId 
  * @returns {DB_Calendar|null}
@@ -1464,7 +1516,6 @@ RosterEngine.prototype._getMostRecentCalendarShift = function (currentDateStr, s
 
 /**
  * @see lib_getPreviousDate
- * @see CalendarCollection.prototype.getByDateAndShiftId
  * @param {String} currentDateStr YYYY-MM-DD
  * @param {Number} shiftId 
  * @param {CalendarCollection} calendarCollection
@@ -1497,7 +1548,6 @@ RosterEngine.prototype.getMostRecentCalendarShiftFromPayload = function (current
 };
 
 /**
- * @see CalendarCollection.getLinkSourceByLinkTarget
  * @see EmployeesCollection.getByIdCached
  * @method
  * @private
@@ -1532,7 +1582,6 @@ RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = f
 
 /**
  * @see lib_getPreviousDate
- * @see CalendarCollection.prototype.getAllByDate
  * @see EmployeesCollection.removeById @noncachable
  * @param {EmployeesCollection} employees 
  * @param {String} currentDate YYYY-MM-DD
@@ -1805,15 +1854,25 @@ RosterEngine.prototype._can_employee_fill_this_shift_no_rules_sm = function (emp
  * @param {DB_Employee} employee 
  * @param {DB_Calendar} calendarRow 
  * @param {Boolean} flag_11HoursAreConsidered 
- * @returns {Boolean}
+ * @returns {Boolean|Number}
  */
-RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (employee, calendarRow, flag_11HoursAreConsidered = true) {
+RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (employee, calendarRow, flag_11HoursAreConsidered = true, flag_return_code = false) {
+
+    let code = this.bitflags.GOOD;
 
     // @todo make this return an integer with one being true and all other integers being a code for what went wrong
     // eg 10 worked previous night, 100 working next day and this being a nightshift, and so on.
     if (employee._leaves.hasDate(calendarRow.date)) {
+        
+        if (flag_return_code == true) {
 
-        return false;
+            code |= this.bitflags.IS_ON_LEAVE;
+
+        } else {
+
+            return false;
+
+        }
 
     }
 
@@ -1840,7 +1899,15 @@ RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (e
         )
     ) {
 
-        return false;
+        if (flag_return_code == true) {
+
+            code |= this.bitflags.HARD_SHIFT_EXCLUSION;
+
+        } else {
+
+            return false;
+
+        }
     
     }
 
@@ -1856,7 +1923,15 @@ RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (e
             ) == false
         ) {
 
-            return false;
+            if (flag_return_code == true) {
+
+                code |= this.bitflags.HOLIDAY_ANAVAILABILITY;
+
+            } else {
+
+                return false;
+
+            }
 
         }
 
@@ -1868,13 +1943,11 @@ RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (e
 
         if (row.date === todayDate) {
 
-            return false;
+            if (flag_return_code == true) {
 
-        }
+                code |= this.bitflags.WORKS_SAME_DAY;
 
-        if (row.date === previousDate) {
-
-            if (row.isNightShift()) {
+            } else {
 
                 return false;
 
@@ -1882,15 +1955,49 @@ RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (e
 
         }
 
+        if (row.date === previousDate) {
+
+            if (row.isNightShift()) {
+
+                if (flag_return_code == true) {
+
+                    code |= this.bitflags.WORKED_PREVIOUS_NIGHT;
+
+                } else {
+
+                    return false;
+
+                }
+
+            }
+
+        }
+
         if (flag_11HoursAreConsidered === true && (Math.abs(lib_getHoursBetweenShifts(row, calendarRow)) < 11)) {
 
-            return false;
+            if (flag_return_code == true) {
+
+                code |= this.bitflags.LESS_THAN_11_HOURS;
+
+            } else {
+
+                return false;
+
+            }
 
         }
 
         if (row.date === nextDate && calendarRow.isNightShift()) {
 
-            return false;
+            if (flag_return_code == true) {
+
+                code |= this.bitflags.WORKS_NEXT_DAY_AND_NIGHTSHIFT;
+
+            } else {
+
+                return false;
+
+            }
 
         }
 
@@ -1924,7 +2031,15 @@ RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (e
 
         if (nightShiftDistancePast < this.DISTANCE_FROM_NIGHT || nightShiftDistanceFuture < this.DISTANCE_FROM_NIGHT) {
 
-            return false;
+            if (flag_return_code == true) {
+
+                code |= this.bitflags.UNACCEPTABLE_NYX_SCORE;
+
+            } else {
+
+                return false;
+
+            }
 
         }
 
@@ -1934,7 +2049,15 @@ RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (e
 
             if (dist > 0 && dist < this.DISTANCE_FROM_WEEKEND) {
 
-                return false;
+                if (flag_return_code == true) {
+
+                    code |= this.bitflags.UNACCEPTABLE_SKO_SCORE;
+
+                } else {
+
+                    return false;
+
+                }
 
             }
 
@@ -1942,7 +2065,15 @@ RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (e
 
     }
 
-    return true;
+    if (flag_return_code == true) {
+
+        return code;
+
+    } else {
+
+        return true;
+
+    }
 
 };
 
@@ -2063,6 +2194,53 @@ RosterEngine.prototype.filter_eligible_employees = function (row, exclude_unwill
 };
 
 /**
+ * 
+ * @param {DB_Employee} employee 
+ * @param {String} dateString 
+ * @returns {Float}
+ */
+RosterEngine.prototype.calculate_employee_weekend_nightshift_weight_before_date = function( employee, dateString ) {
+
+    let weight = 0.0;
+
+    for ( let weekend_shift of employee._all_weekends ) {
+
+        if ( weekend_shift.isNightShift() && weekend_shift.date < dateString ) {
+
+            if ( weekend_shift._isAPondShift && !weekend_shift._isAPondMasterShift ) {
+
+                if ( weekend_shift.pond_master_row != null ) {
+
+                    if ( weekend_shift.pond_master_row.employee_id == employee.id ) {
+
+                        continue;
+
+                    }
+
+                }
+
+            }
+
+            weight += weekend_shift.shift_weight;
+
+        }
+
+    }
+
+    console.log( 'weight: ' + weight + ' employee.inveteracy_coefficient: ' + employee.inveteracy_coefficient );
+
+    if ( isNaN( weight ) ) {
+
+        console.log( 'weight is NaN' );
+        console.log( structuredClone( employee ) );
+
+    }
+
+    return weight * employee.inveteracy_coefficient;
+
+};
+
+/**
  * @see DB_Calendar.prototype.isEverydayShift @noncachable
  * @see DB_Calendar.prototype.isEveningShift @cached
  * @see DB_Calendar.prototype.isNightShift @cached
@@ -2105,7 +2283,14 @@ RosterEngine.prototype._augmentPayloadEmployees = function (employees, olderCale
         employee._shiftPreferences = this.employeePreferences.getArrayForEngine(employee.id, this.timetables);
         employee._holidays_worked = {};
 
-        for (let row of employee._shifts_worked) {
+        // for (let row of employee._shifts_worked) {
+        for ( let row of olderCalendarRows ) {
+
+            if ( row.employee_id !== employee.id ) {
+
+                continue;
+
+            }
 
             if (row.isNightShift()) {
 
@@ -2115,15 +2300,31 @@ RosterEngine.prototype._augmentPayloadEmployees = function (employees, olderCale
 
             if (row.isWeekendShift()) {
 
+                // console.log( 'pushed row:' );
+                // console.log( structuredClone( row ) );
+                // console.log( row );
+
                 employee._weekends_worked.push(row);
                 employee._all_weekends.push(row);
+
+                // console.log( structuredClone( row ) );
+
+                // console.log( structuredClone( employee._all_weekends ) );
+                // console.log( employee._all_weekends );
 
             }
 
 
         }
 
-        for (let row of employee._future_set_shifts) {
+        // for (let row of employee._future_set_shifts) {
+        for ( let row of futureCalendarRows ) {
+
+            if ( row.employee_id !== employee.id ) {
+
+                continue;
+
+            }
 
             if (row.isNightShift()) {
 
@@ -2133,6 +2334,10 @@ RosterEngine.prototype._augmentPayloadEmployees = function (employees, olderCale
 
             if (row.isWeekendShift()) {
 
+                // console.log( 'pushed row:' );
+                // console.log( structuredClone( row ) );
+                // console.log( row );
+
                 employee._future_set_weekends.push(row);
                 employee._all_weekends.push(row);
 
@@ -2140,7 +2345,14 @@ RosterEngine.prototype._augmentPayloadEmployees = function (employees, olderCale
 
         }
 
-        for (let row of employee._current_set_shifts) {
+        // for (let row of employee._current_set_shifts) {
+        for ( let row of currentCalendarRows ) {
+
+            if ( row.employee_id !== employee.id ) {
+
+                continue;
+
+            }
 
             if (row.isNightShift()) {
 
@@ -2149,6 +2361,10 @@ RosterEngine.prototype._augmentPayloadEmployees = function (employees, olderCale
             }
 
             if (row.isWeekendShift()) {
+
+                // console.log( 'pushed row:' );
+                // console.log( structuredClone( row ) );
+                // console.log( row );
 
                 employee._current_set_weekends.push(row);
                 employee._all_weekends.push(row);
@@ -2216,7 +2432,7 @@ RosterEngine.prototype._check_linkage_integrity = function (employee, row, rowCo
         if (linkSource != null) {
 
             if (this._check_linkage_integrity(employee, linkSource, rowCollection, 'backwards') == false) {
-                console.warn("integrity failure backwards");
+                // console.warn("integrity failure backwards");
                 return false;
 
             }
@@ -2226,7 +2442,7 @@ RosterEngine.prototype._check_linkage_integrity = function (employee, row, rowCo
         if (linkTarget != null) {
 
             if (this._check_linkage_integrity(employee, linkTarget, rowCollection, 'forwards') == false) {
-                console.warn("integrity failed forwards");
+                // console.warn("integrity failed forwards");
                 return false;
 
             }
@@ -2294,7 +2510,7 @@ RosterEngine.prototype._check_linkage_integrity = function (employee, row, rowCo
         }
 
         if (this_link_is_filled_with_the_same_employee == false) {
-            console.warn('not the same employee filling shift')
+            // console.warn('not the same employee filling shift');
             if (this._can_employee_fill_this_shift_no_rules_sm(employee, row) == false) {
 
                 return false;
@@ -2307,7 +2523,7 @@ RosterEngine.prototype._check_linkage_integrity = function (employee, row, rowCo
 
             }
 
-            console.warn('employee passed all tests for linkages');
+            // console.warn('employee passed all tests for linkages');
 
         }
 
@@ -2550,7 +2766,7 @@ RosterEngine.prototype.fill_chained_links = function (employee, row, rowCollecti
         if (row.isFilled()) {
 
             // @todo reached a filled part of the chain. this generally shouldn't happen so log it.
-            console.warn("found filled row going backwards on a linked chain. aborting the chain");
+            // console.warn("found filled row going backwards on a linked chain. aborting the chain");
 
             if (row.employee_id == employee.id) {
 
@@ -2581,7 +2797,7 @@ RosterEngine.prototype.fill_chained_links = function (employee, row, rowCollecti
             // checking if the filled row has the same employee we carry. if not aborting and logging
             if (row.employee_id != employee.id) {
 
-                console.warn("found filled row going forwards on a linked chain that doesn't match the given employee. aborting the chain");
+                // console.warn("found filled row going forwards on a linked chain that doesn't match the given employee. aborting the chain");
                 return false;
             }
 
@@ -3288,19 +3504,15 @@ RosterEngine.prototype._is_employee_available_for_holiday = function (employee, 
  * @see EmployeesCollection.prototype.getById @noncachable
  * @see EmployeesCollection.prototype.removeById @noncachable
  * @see CalendarCollection.prototype.concatCollection
- * @see CalendarCollection.prototype.getSourceByTarget
  * @see CalendarCollection.prototype.sortByEligibleEmployeesAsc
  * @see CalendarCollection.prototype.removeById @noncachable
- * @see CalendarCollection.prototype.getAllSlavesForPond
- * @see RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift
  * @see RosterEngine.prototype._allocate
  * @see RosterEngine.prototype._autofill_future_nightshifts
  * @see RosterEngine.prototype._findMasterCalendarRowBySlaveCalendarRow
  */
 RosterEngine.prototype.calculate = function () {
 
-
-
+    this.allRowsTemp = this.olderCalendarRows.concatCollection(this.currentCalendarRows.concatCollection(this.futureCalendarRows));
 
     let payload = new Object();
     payload['nextState'] = null;
@@ -3309,6 +3521,7 @@ RosterEngine.prototype.calculate = function () {
     payload['willingness'] = true;
     payload['linkage'] = true;
     payload['holidayLoop'] = true;
+    // payload['holidayLoop'] = false;
     payload['necessary'] = true;
     payload['pastRows'] = this.olderCalendarRows;
     payload['currentRows'] = this.currentCalendarRows;
@@ -3316,8 +3529,13 @@ RosterEngine.prototype.calculate = function () {
     payload['allRows'] = this.olderCalendarRows.concatCollection(this.currentCalendarRows.concatCollection(this.futureCalendarRows));
     payload['employees'] = this.employees;
     payload['weekends'] = {};
+    payload['fridayNightWeight'] = this.settings.nightParaskeuiVariant;
+    payload['saturdayNightWeight'] = this.settings.nightSavvatoVariant;
+    payload['sundayNightWeight'] = this.settings.nightKyriakiVariant;
+
     this._augmentPayloadEmployees(payload.employees, payload.pastRows, payload.futureRows, payload.currentRows);
     this._augmentPayloadCalendarRows(payload.currentRows, payload.allRows, payload.employees, this.fromDate);
+    // debugger;
     for (let row of payload.pastRows) {
         row.is_past = true;
         row.is_current = false;
@@ -3336,12 +3554,20 @@ RosterEngine.prototype.calculate = function () {
 
     for (let row of payload.allRows) {
 
+        // console.log( 'entered payload.allRows' );
+
         if (row.isWeekendShift()) {
 
+            // console.log( 'entered row.isWeekendShift' );
+
             let found_weekend = null;
-            for (let weekend in payload.weekends) {
+            for (let weekend_key in payload.weekends) {
+
+                let weekend = payload.weekends[ weekend_key ];
 
                 if (weekend.contains_date(row.date)) {
+
+                    // console.log( 'found the weekend' );
 
                     found_weekend = weekend;
                     break;
@@ -3352,18 +3578,30 @@ RosterEngine.prototype.calculate = function () {
 
             if (found_weekend != null) {
 
+                // console.log( 'pushing on found_weekend.push(row)' );
+
                 found_weekend.push(row);
 
             } else {
 
+                // console.log( 'didnt find the weekend, creating new' );
+
                 let weekend_start = this.get_weekend_start(row);
                 let weekend_end = this.get_weekend_end(row);
 
-                if (!(weekend_start instanceof String) || !(weekend_end instanceof String)) {
+                if ( typeof weekend_start !== 'string' || typeof weekend_end !== 'string' ) {
+
+                    // console.log( 'bad day format' );
+                    // console.log( typeof weekend_start === 'string' );
+                    // console.log( weekend_start instanceof String );
+                    // console.log( structuredClone( weekend_start ) );
+                    // console.log( structuredClone( weekend_end ) );
 
                     continue;
 
                 }
+
+                // console.log( 'cerating new weekend' );
 
                 found_weekend = new Weekend(weekend_start, weekend_end);
                 payload.weekends[found_weekend.name] = found_weekend;
@@ -3371,6 +3609,8 @@ RosterEngine.prototype.calculate = function () {
 
 
             }
+
+            // console.log( 'assigning weekend id to row' );
 
             row.weekend_id = found_weekend.name;
 
@@ -3393,6 +3633,7 @@ RosterEngine.prototype.calculate = function () {
     payload['testString'] = 'Test Start';
 
     let initial_state = new FillLinkedTargetsState();
+    // let initial_state = new FillWeekendNighshiftsState();
 
     let state_machine_instance = new Machine();
     state_machine_instance.payload = payload;

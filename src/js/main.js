@@ -3492,6 +3492,193 @@ RosterEngine.prototype._is_employee_available_for_holiday = function (employee, 
 };
 
 /**
+ * belongs_to_valid_category
+ *      an anikei stin katigoria
+ *      true: simainei oti anikei sto pool
+ * can_infact_go
+ *      mporei na plirwsei to posto me olous tous kanones (den ypologizei to linkage integrity)
+ *      pliroi oles tis proypotheseis gia na plirwsei to posto prin ton elegxo twn syndedemenwn vardiwn
+ *      true: ploiroi
+ *      false: den pliroi
+ * is_on_leave
+ *      einai se adeia
+ *      true: einai se adeia kai de mporei na paei
+ *      false den einai se adeia, opote isws mporei na paei
+ * hard_shift_excluded
+ *      den exei valei sti protimiseis tou auti vardia
+ *      true: den exei valei stis protimiseis tou auti ti vardia
+ *      false: tin exei valei stis protimiseis, ara apo auto ton elegxo mporei na paei
+ * holiday_unavailability
+ *      de moprei na paei logw twn kanonwn twn eortwn
+ *      true: einai mi diathesimos logw twn kanown twn eortwn
+ *      false: o kanonas twn eortwn den periorizei ton ypallilo apo to na paei
+ * works_same_day
+ *      exei kataxwrithei se vardia auti ti mera
+ *      true: exei kataxwrithei tin idia mera se kapoia vardia kai de mporei na paei auti
+ *      false: den exei kataxwristhei kapou simera kai isws na mporei na plirwsei ti vardia
+ * worked_previous_night
+ *      exei doulepsei tin proigoumeni nyxta kai den einai diathesimos ekeini ti mera
+ *      true: den einai diathesimos ekeini ti mera gt exei doulepsei tin proigoumeni nyxta
+ *      false: den exei doulepsei tin proigoumeni nyxta, opote den ton empodizei autos o kanonas
+ * eleven_hour_rule
+ *      spaei ton kanona twn 11 wrwn apostasi anamesa stis vardies
+ *      true: spaei auto ton kanona opote de mporei na topothetithe
+ *      false: de spaei auto ton kanona opote den ton empodize autos o kanonas
+ * is_night_but_works_next_day
+ *      einai nyxterini vardia alla exei idi topotheithei o ypallilos tin epomeni mera se vardia
+ *      true: einai nyxterini vardia kai o ypallilos idi douleuei tin epomeni mera opote de mporei na paei
+ *      false: eite den einai nyxterin vardia, eite einai kai de douleuei tin epomeni mera opote den empodizei autos o kanonas
+ * unacceptable_nyx
+ *      exei paei nyxta se apostasi mikroteri apo to apodekto kai i vardia einai nyxterini, i exei idi topothetiteh se melontiki nyxta se apostasi mikroteri apo to apodekto
+ *      true: pragmati i apostasi apo tin alli nyxta einai mi apodekti
+ *      false: den empodizei i apostasi apo nyxta
+ * unacceptable_sko
+ *      to proigoumeno s/k sto opoio exei i sto epomeno sto opoio exei idi topothetithei einai se mi apodekti apostasi apo auti ti vardia tou savvatokyriakou
+ *      true: true
+ *      false: einai apodekti opote den to empodizei autos o kanonas
+ * @param {Number} employeeId 
+ * @param {Number} calendarRowId 
+ * @returns {Object}
+ */
+RosterEngine.prototype.why_employee_can_not_go = function ( employeeId, calendarRowId ) {
+
+    const employee      = this.employees.getById( employeeId );
+    const calendar_row  = this.currentCalendarRows.getById( calendarRowId );
+
+    let payload = new Object();
+    payload[ 'nextState' ] = null;
+    payload[ 'mostRecentLinkages' ] = new CalendarCollection([]);
+    payload[ 'unwillingRows' ] = new CalendarCollection([]);
+    payload[ 'willingness' ] = true;
+    payload[ 'linkage' ] = true;
+    payload[ 'holidayLoop' ] = true;
+    // payload[ 'holidayLoop' ] = false;
+    payload[ 'necessary' ] = true;
+    payload[ 'pastRows' ] = this.olderCalendarRows;
+    payload[ 'currentRows' ] = this.currentCalendarRows;
+    payload[ 'futureRows' ] = this.futureCalendarRows;
+    payload[ 'allRows' ] = this.olderCalendarRows.concatCollection(this.currentCalendarRows.concatCollection(this.futureCalendarRows));
+    payload[ 'employees' ] = this.employees;
+    payload[ 'weekends' ] = {};
+    payload[ 'fridayNightWeight' ] = this.settings.nightParaskeuiVariant;
+    payload[ 'saturdayNightWeight' ] = this.settings.nightSavvatoVariant;
+    payload[ 'sundayNightWeight' ] = this.settings.nightKyriakiVariant;
+
+    this._augmentPayloadEmployees( payload.employees, payload.pastRows, payload.futureRows, payload.currentRows );
+    this._augmentPayloadCalendarRows( payload.currentRows, payload.allRows, payload.employees, this.fromDate );
+    
+
+    let result = {};
+
+    result.belongs_to_valid_category = this._can_employee_fill_this_shift_no_rules_sm(employee, calendar_row);
+    
+    let bit_code = this._can_employee_fill_this_shift_rules_only_sm( employee, calendar_row, true, true);
+
+    if (bit_code == this.bitflags.GOOD) {
+
+        result.can_infact_go = true;
+
+    } else {
+
+        result.can_infact_go = false;
+
+    }
+
+    if (bit_code & this.bitflags.IS_ON_LEAVE) {
+
+        result.is_on_leave = true;
+
+    } else {
+
+        result.is_on_leave = false;
+
+    }
+
+    if (bit_code & this.bitflags.HARD_SHIFT_EXCLUSION) {
+
+        result.hard_shift_excluded = true;
+
+    } else {
+
+        result.hard_shift_excluded = false;
+
+    }
+
+    if (bit_code & this.bitflags.HOLIDAY_ANAVAILABILITY) {
+
+        result.holiday_unavailability = true;
+
+    } else {
+
+        result.holiday_unavailability = false;
+
+    }
+
+    if (bit_code & this.bitflags.WORKS_SAME_DAY) {
+
+        result.works_same_day = true;
+
+    } else {
+
+        result.works_same_day = false;
+
+    }
+
+    if (bit_code & this.bitflags.WORKED_PREVIOUS_NIGHT) {
+
+        result.worked_previous_night = true;
+
+    } else {
+
+        result.worked_previous_night = false;
+
+    }
+
+    if (bit_code & this.bitflags.LESS_THAN_11_HOURS) {
+
+        result.eleven_hour_rule = true;
+
+    } else {
+
+        result.eleven_hour_rule = false;
+
+    }
+
+    if (bit_code & this.bitflags.WORKS_NEXT_DAY_AND_NIGHTSHIFT) {
+
+        result.is_night_but_works_next_day = true;
+
+    } else {
+
+        result.is_night_but_works_next_day = false;
+
+    }
+
+    if (bit_code & this.bitflags.UNACCEPTABLE_NYX_SCORE) {
+
+        result.unacceptable_nyx = true;
+
+    } else {
+
+        result.unacceptable_nyx = false;
+
+    }
+    
+    if (bit_code & this.bitflags.UNACCEPTABLE_SKO_SCORE) {
+
+        result.unacceptable_sko = true;
+
+    } else {
+
+        result.unacceptable_sko = false;
+
+    }
+
+    return result;
+
+}
+
+/**
  * @see DB_Employee.prototype.getFullname @cached
  * @see DB_Calendar.prototype.isLinkedTargetShift @cached
  * @see DB_Calendar.prototype.isFilled @noncachable

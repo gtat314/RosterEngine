@@ -1893,14 +1893,15 @@ RosterEngine.prototype._can_employee_fill_this_shift_rules_only_sm = function (e
         )
     );
     // this handles the case that the employee has excluded nightshifts or weekends
-    if (
-        !this._employee_wants_to_go_to_shift(employee, calendarRow) &&
-        (
-            calendarRow.isNightShift() ||
-            calendarRow.isWeekendShift()
-        )
-    ) {
+    // if (
+    //     !this._employee_wants_to_go_to_shift(employee, calendarRow) &&
+    //     (
+    //         calendarRow.isNightShift() ||
+    //         calendarRow.isWeekendShift()
+    //     )
+    // ) {
 
+    if ( !this._employee_wants_to_go_to_shift(employee, calendarRow) ) {// does it for every shift
         if (flag_return_code == true) {
 
             code |= this.bitflags.HARD_SHIFT_EXCLUSION;

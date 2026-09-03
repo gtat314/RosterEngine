@@ -3568,6 +3568,90 @@ RosterEngine.prototype.why_employee_can_not_go = function ( employeeId, calendar
     this._augmentPayloadEmployees( payload.employees, payload.pastRows, payload.futureRows, payload.currentRows );
     this._augmentPayloadCalendarRows( payload.currentRows, payload.allRows, payload.employees, this.fromDate );
     
+    for (let row of payload.pastRows) {
+        row.is_past = true;
+        row.is_current = false;
+        row.is_future = false;
+    }
+    for (let row of payload.currentRows) {
+        row.is_past = false;
+        row.is_current = true;
+        row.is_future = false;
+    }
+    for (let row of payload.futureRows) {
+        row.is_past = false;
+        row.is_current = false;
+        row.is_future = true;
+    }
+
+    for (let row of payload.allRows) {
+
+        // console.log( 'entered payload.allRows' );
+
+        if (row.isWeekendShift()) {
+
+            // console.log( 'entered row.isWeekendShift' );
+
+            let found_weekend = null;
+            for (let weekend_key in payload.weekends) {
+
+                let weekend = payload.weekends[ weekend_key ];
+
+                if (weekend.contains_date(row.date)) {
+
+                    // console.log( 'found the weekend' );
+
+                    found_weekend = weekend;
+                    break;
+
+                }
+
+            }
+
+            if (found_weekend != null) {
+
+                // console.log( 'pushing on found_weekend.push(row)' );
+
+                found_weekend.push(row);
+
+            } else {
+
+                // console.log( 'didnt find the weekend, creating new' );
+
+                let weekend_start = this.get_weekend_start(row);
+                let weekend_end = this.get_weekend_end(row);
+
+                if ( typeof weekend_start !== 'string' || typeof weekend_end !== 'string' ) {
+
+                    // console.log( 'bad day format' );
+                    // console.log( typeof weekend_start === 'string' );
+                    // console.log( weekend_start instanceof String );
+                    // console.log( structuredClone( weekend_start ) );
+                    // console.log( structuredClone( weekend_end ) );
+
+                    continue;
+
+                }
+
+                // console.log( 'cerating new weekend' );
+
+                found_weekend = new Weekend(weekend_start, weekend_end);
+                payload.weekends[found_weekend.name] = found_weekend;
+                found_weekend.push(row);
+
+
+            }
+
+            // console.log( 'assigning weekend id to row' );
+
+            row.weekend_id = found_weekend.name;
+
+        }
+
+    }
+
+    payload['startingDate'] = this.fromDate;
+    payload['endingDate'] = this.untilDate;
 
     let result = {};
 
@@ -3672,6 +3756,19 @@ RosterEngine.prototype.why_employee_can_not_go = function ( employeeId, calendar
     } else {
 
         result.unacceptable_sko = false;
+
+    }
+
+    if ( calendar_row._isALinkedShift ){
+
+        let chain = this.get_linked_chain( calendar_row, payload.allRows);
+        let chain_integrity = this.check_chain_integrity( employee, chain );
+
+        result.linkage_impediment = !chain_integrity;
+
+    } else {
+
+        result.linkage_impediment = false;
 
     }
 

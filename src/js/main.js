@@ -73,9 +73,9 @@ function RosterEngine() {
     /**
      * @property
      * @public
-     * @type {EmployeePreferenceTimetableCollection}
+     * @type {ShiftPreferenceCollection}
      */
-    this.employeePreferences = null;
+    this.shiftsPreferences = null;
 
     /**
      * @property
@@ -375,13 +375,13 @@ RosterEngine.prototype.set_employees = function (employees) {
 /**
  * @method
  * @public
- * @param {Object} employeePreferences 
+ * @param {Object} shiftsPreferences 
  */
-RosterEngine.prototype.set_employeePreferences = function (employeePreferences) {
+RosterEngine.prototype.set_shiftsPreferences = function ( shiftsPreferences ) {
 
-    if (this.employeePreferences === null) {
+    if ( this.shiftsPreferences === null ) {
 
-        this.employeePreferences = new EmployeePreferenceTimetableCollection(employeePreferences);
+        this.shiftsPreferences = new ShiftPreferenceCollection( shiftsPreferences );
 
     }
 
@@ -692,6 +692,9 @@ RosterEngine.prototype._augmentPayloadCalendarRows = function (activeCalendarCol
         row._eligibleEmployeesWithoutRules = new EmployeesCollection([]);
         row._willingEmployeesWithoutRules = new EmployeesCollection([]);
         row._unwillingEmployeesWithoutRules = new EmployeesCollection([]);
+        /**
+         * @todo this should probably be removed if it is used nowhere anymore?
+         */
         row._timeBracket = lib_calculateDayBracket(row.shift_times);
 
         if (row.shift_id !== null) {
@@ -1699,98 +1702,6 @@ RosterEngine.prototype._findMasterCalendarRowBySlaveCalendarRow = function (row)
 };
 
 /**
- * @see TimetablesCollection.prototype.getWeekendIds
- * @todo sto payload
- * @method
- * @private
- * @param {DB_Employee} employee 
- * @returns {Boolean}
- */
-RosterEngine.prototype._employeeHasExcludedWeekendsFromHisPreferences = function (employee) {
-
-    // console.log( 'run' );
-
-    if (employee.hasOwnProperty('_employeeHasExcludedWeekendsFromHisPreferences')) {
-
-        return employee._employeeHasExcludedWeekendsFromHisPreferences;
-
-    }
-
-    var weekendTimetableIds = this.timetables.getWeekendIds();
-
-    var found = false;
-
-    for (let node of this.employeePreferences) {
-
-        if (node.employee_id === employee.id && weekendTimetableIds.includes(node.timetable_id)) {
-
-            found = true;
-
-            break;
-
-        }
-
-    }
-
-    // if found it means a preference is found, so he hasnt excluded weekend shifts
-    if (found === true) {
-
-        employee._employeeHasExcludedWeekendsFromHisPreferences = false;
-
-        return false;
-
-    } else {
-
-        employee._employeeHasExcludedWeekendsFromHisPreferences = true;
-
-        return true;
-
-    }
-
-};
-
-/**
- * @see TimetablesCollection.prototype.getNightIds
- * @todo sto payload
- * @method
- * @private
- * @param {DB_Employee} employee 
- * @returns {Boolean} 
- */
-RosterEngine.prototype._employeeHasExcludedNightsFromHisPreferences = function (employee) {
-
-    // console.log( 'run' );
-
-    var nightTimetableIds = this.timetables.getNightIds();
-
-    var found = false;
-
-    for (let node of this.employeePreferences) {
-
-        if (node.employee_id === employee.id && nightTimetableIds.includes(node.timetable_id)) {
-
-            found = true;
-
-            break;
-
-        }
-
-    }
-
-    // if found it means a preference is found, so he hasnt excluded weekend shifts
-    if (found === true) {
-
-        return false;
-
-    } else {
-
-        return true;
-
-    }
-
-};
-
-/**
  * @see DB_Role.prototype.getPoolsByPreference
  * @see RolesCollection.prototype.getByIdCached
  * @method
@@ -1822,7 +1733,7 @@ RosterEngine.prototype._getPoolsForCalendarRow = function (calendar_row) {
  */
 RosterEngine.prototype._employee_wants_to_go_to_shift = function (employee, calendarRow) {
 
-    return employee._shiftPreferences[calendarRow.shift_weekday][calendarRow._timeBracket];
+    return employee._shiftPreferences[ calendarRow.shift_weekday ][ calendarRow.shift_times ];
 
 };
 
@@ -1848,6 +1759,58 @@ RosterEngine.prototype._can_employee_fill_this_shift_no_rules_sm = function (emp
     }
 
     return false;
+
+};
+
+/**
+ * 
+ * @param {DB_Employee} employee_a 
+ * @param {DB_Employee} employee_b 
+ * @param {DB_Calendar} calendar_row 
+ * @returns {DB_Employee | null}
+ */
+RosterEngine.prototype.who_is_more_desirable = function( employee_a, employee_b, calendar_row) {
+
+    for ( let pool of calendar_row._pools ){
+
+        let a_has_pool = false;
+        let b_has_pool = false;
+
+        for ( let pool_id of employee_a._poolIds ) {
+
+            if ( pool_id == pool.id ){
+
+                a_has_pool = true;
+
+            }
+
+        }
+
+        for ( let pool_id of employee_b._poolIds ) {
+
+            if ( pool_id == pool.id ){
+
+                b_has_pool = true;
+
+            }
+
+        }
+
+        if ( a_has_pool && !b_has_pool ) {
+
+            return employee_a;
+
+        }
+
+        if ( b_has_pool && !a_has_pool ) {
+
+            return employee_b;
+
+        }
+
+    }
+
+    return null;
 
 };
 
@@ -2283,7 +2246,7 @@ RosterEngine.prototype._augmentPayloadEmployees = function (employees, olderCale
         employee._current_provisionally_set_shifts = new CalendarCollection([]);
         employee._leaves = this.leaves.getByEmployeeId(employee.id);
         employee._poolIds = this.pools.getByEmployee(employee, this.junctionEmployeePool);
-        employee._shiftPreferences = this.employeePreferences.getArrayForEngine(employee.id, this.timetables);
+        employee._shiftPreferences = this.shiftsPreferences.getArrayForEngine( employee.id );
         employee._holidays_worked = {};
 
         // for (let row of employee._shifts_worked) {

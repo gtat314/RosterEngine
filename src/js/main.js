@@ -368,7 +368,8 @@ RosterEngine.prototype.set_employees = function (employees) {
 
     this.employees = new EmployeesCollection( employees );
     this.employees.calcInveteracyCoefficients( this.settings.coefficients );
-    this.employees.sortByInveteracyCoefficient( 'ASC' );
+    this.employees.calcCombinedCoefficients( this.settings.coefficients );
+    this.employees.sortByCombinedCoefficient( 'ASC' );
 
 };
 
@@ -1435,7 +1436,7 @@ RosterEngine.prototype._get_employee_sko_scores_by_date = function (employee, da
 RosterEngine.prototype._get_employee_desired_nyx_score = function (employee) {
 
     // @todo make this work with the unique groupings when they are implemented
-    return parseInt( employee.getInveteracyCoefficient() ) + 7;
+    return parseInt( employee.getInveteracyCoefficient() + employee.trouble_coefficient) + 7;
 
 
 };
@@ -1451,7 +1452,7 @@ RosterEngine.prototype._get_employee_desired_nyx_score = function (employee) {
 RosterEngine.prototype._get_employee_desired_sko_score = function (employee) {
 
     // @todo make this work with the unique groupings when they are implemented
-    return Math.floor( parseInt( employee.getInveteracyCoefficient() ) / 4) + 3;
+    return Math.floor( parseInt( employee.getInveteracyCoefficient() + employee.trouble_coefficient) / 4) + 3;
 
 };
 
@@ -2202,7 +2203,7 @@ RosterEngine.prototype.calculate_employee_weekend_nightshift_weight_before_date 
 
     // }
 
-    return weight * employee.getInveteracyCoefficient();
+    return weight * (employee.getInveteracyCoefficient() + employee.trouble_coefficient);
 
 };
 
@@ -3383,15 +3384,17 @@ RosterEngine.prototype.compare_absolute_proposed_deviations = function (
 
     }
 
-    if (proposed_absolute_distances.a <= proposed_absolute_distances.b) {
+    if (proposed_absolute_distances.a < proposed_absolute_distances.b) {
 
         return "a";
 
-    } else {
+    } else if (proposed_absolute_distances.a > proposed_absolute_distances.b) {
 
         return "b";
 
     }
+
+    return null;
 
 };
 
@@ -3452,6 +3455,47 @@ RosterEngine.prototype._is_employee_available_for_holiday = function (employee, 
     }
 
     return true;
+
+};
+
+RosterEngine.prototype.get_past_weekend_nightshifts = function (employee, date){
+
+    let friday_score = 0;
+    let saturday_score = 0;
+    let sunday_score = 0;
+
+    for ( let weekend_row of employee._all_weekends ) {
+
+        if ( weekend_row.date < date ) {
+
+            if ( weekend_row.isNightShift() ) {
+
+                if ( weekend_row.isFriday() ) {
+
+                    friday_score += 1;
+
+                } else if ( weekend_row.isSaturday() ) {
+
+                    saturday_score += 1;
+
+                } else {
+
+                    sunday_score += 1;
+
+                }
+
+
+            }
+
+        }
+
+    }
+
+    return {
+        'fridays'       : friday_score,
+        'saturdays'     : saturday_score,
+        'sundays'       : sunday_score
+    }
 
 };
 

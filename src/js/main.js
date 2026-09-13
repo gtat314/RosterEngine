@@ -1554,39 +1554,6 @@ RosterEngine.prototype.getMostRecentCalendarShiftFromPayload = function (current
 };
 
 /**
- * @see EmployeesCollection.getByIdCached
- * @method
- * @private
- * @param {DB_Calendar} targetCalendarRow 
- * @returns {DB_Employee|null}
- */
-RosterEngine.prototype._findEmployeeThatFilledTheSourceShiftUsingTargetShift = function (targetCalendarRow) {
-
-    // console.log( 'run' );
-
-    // var sourceCalendarRow = this.mixedCalendarRows.getLinkSourceByLinkTarget( targetCalendarRow, this.shifts );
-
-    if (targetCalendarRow.shift_id === null) { return null; }
-
-    var targetShift = this.shifts.getByIdCached(targetCalendarRow.shift_id);
-
-    if (targetShift === null) { return null; }
-
-    if (targetShift.propagate_from_shift_id === null) { return null; }
-
-    var sourceShift = this.shifts.getByIdCached(targetShift.propagate_from_shift_id);
-
-    var sourceCalendarRow = this._getMostRecentCalendarShift(targetCalendarRow.date, sourceShift.id);
-
-    if (sourceCalendarRow === null) { return null; }
-
-    if (sourceCalendarRow.employee_id === null) { return null; }
-
-    return this.employees.getByIdCached(sourceCalendarRow.employee_id);
-
-};
-
-/**
  * @see lib_getPreviousDate
  * @see EmployeesCollection.removeById @noncachable
  * @param {EmployeesCollection} employees 
@@ -3458,7 +3425,13 @@ RosterEngine.prototype._is_employee_available_for_holiday = function (employee, 
 
 };
 
-RosterEngine.prototype.get_past_weekend_nightshifts = function (employee, date){
+/**
+ * 
+ * @param {DB_Employee} employee 
+ * @param {String} date 
+ * @returns {Object}
+ */
+RosterEngine.prototype.get_past_weekend_nightshifts_counts = function (employee, date){
 
     let friday_score = 0;
     let saturday_score = 0;
@@ -3496,6 +3469,106 @@ RosterEngine.prototype.get_past_weekend_nightshifts = function (employee, date){
         'saturdays'     : saturday_score,
         'sundays'       : sunday_score
     }
+
+};
+
+/**
+ * 
+ * @param {Object <- get_past_weekend_nightshifts_counts} date_counts 
+ * @param {DB_Calendar} origin_shift 
+ * @param {DB_Calendar} target_shift
+ * @returns {Number (max: +2, min: -2)| Null}
+ */
+RosterEngine.prototype.get_preference_for_date_swap = function ( date_counts, origin_shift, target_shift ){
+
+    let origin_day = "none";
+    let target_day = "none";
+
+    if ( date_counts == null || origin_shift == null || target_shift == null ) {
+
+        return null;
+
+    }
+
+    let date_rankings = {
+
+        'fri' : 0,
+        'sat' : 0,
+        'sun' : 0
+
+    }
+
+    if ( origin_shift.isFriday() ) {
+
+        origin_day = "fri";
+
+    } else if ( origin_day.isSaturday() ) {
+
+        origin_day = "sat";
+
+    } else if ( origin_day.isSunday() ) {
+
+        origin_day = "sun";
+
+    }
+
+    if ( target_shift.isFriday() ) {
+
+        target_day = "fri";
+
+    } else if ( target_shift.isSaturday() ) {
+
+        target_day = "sat";
+
+    } else if ( target_shift.isSunday() ) {
+
+        target_day = "sun";
+
+    }
+
+    if ( origin_day == "none" || target_day == "none" ) {
+
+        return null;
+
+    }
+
+    if ( date_counts.fridays < date_counts.saturdays) {
+
+        date_rankings.fri += 1;
+
+    }
+
+    if ( date_counts.fridays < date_counts.sundays) {
+
+        date_rankings.fri += 1;
+
+    }
+
+    if ( date_counts.saturdays < date_counts.fridays) {
+
+        date_rankings.sat += 1;
+
+    }
+
+    if ( date_counts.saturdays < date_counts.sundays) {
+
+        date_rankings.sat += 1;
+
+    }
+
+    if ( date_counts.sundays < date_counts.fridays) {
+
+        date_rankings.sun += 1;
+
+    }
+
+    if ( date_counts.sundays < date_counts.saturdays) {
+
+        date_rankings.sun += 1;
+
+    }
+
+    return date_rankings[target_day] - date_rankings[origin_day];
 
 };
 

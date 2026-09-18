@@ -12,7 +12,7 @@ function RosterEngine() {
      * @property
      * @type {Number} int
      */
-    this.DISTANCE_FROM_WEEKEND = 3;
+    this.DISTANCE_FROM_WEEKEND = 1;
 
     /**
      * @private
@@ -1451,8 +1451,20 @@ RosterEngine.prototype._get_employee_desired_nyx_score = function (employee) {
  */
 RosterEngine.prototype._get_employee_desired_sko_score = function (employee) {
 
+    let coefficient = employee.getCombinedCoefficient();
+
+    if ( coefficient <= 2 ) {
+
+        return 3;
+
+    } else {
+
+        return coefficient + 2;
+
+    }
+
     // @todo make this work with the unique groupings when they are implemented
-    return Math.floor( parseInt( employee.getInveteracyCoefficient() + employee.trouble_coefficient) / 4) + 3;
+    // return Math.floor( parseInt( employee.getInveteracyCoefficient() + employee.trouble_coefficient) / 4) + 3;
 
 };
 
@@ -3502,11 +3514,11 @@ RosterEngine.prototype.get_preference_for_date_swap = function ( date_counts, or
 
         origin_day = "fri";
 
-    } else if ( origin_day.isSaturday() ) {
+    } else if ( origin_shift.isSaturday() ) {
 
         origin_day = "sat";
 
-    } else if ( origin_day.isSunday() ) {
+    } else if ( origin_shift.isSunday() ) {
 
         origin_day = "sun";
 

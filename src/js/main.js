@@ -178,13 +178,6 @@ function RosterEngine() {
     /**
      * @property
      * @private
-     * @type {Map}
-     */
-    this._findMasterCalendarRowBySlaveCalendarRowCache = new Map();
-
-    /**
-     * @property
-     * @private
      * @type {String} YYYY-MM-DD
      */
     this.fromDate = null;
@@ -343,19 +336,6 @@ RosterEngine.prototype.set_todayCalendarRows = function (todayCalendarRows) {
 RosterEngine.prototype.set_calendar = function (calendar) {
 
     this.olderCalendarRows = new CalendarCollection(calendar);
-
-};
-
-/**
- * @method
- * @public
- * @param {Object} calendar 
- * @returns {void}
- */
-RosterEngine.prototype.set_calendarAll = function (calendar) {
-
-    this._allocations = [];
-    this.allCalendarRows = new CalendarCollection(calendar);
 
 };
 
@@ -611,12 +591,6 @@ RosterEngine.prototype.get_weekend_end = function (row) {
 };
 
 /**
- * @runs 1 time / day
- * @see DB_Calendar.prototype.getPreviousDateBy6Days
- * @see ShiftsCollection.prototype.getByIdCached
- * @see ShiftsCollection.prototype.isLinkedShift
- * @see ShiftsCollection.prototype.isLinkedTargetShift
- * @see ShiftPondCollection.prototype.isPondMasterShift
  * @method
  * @public
  * @param {CalendarCollection} activeCalendarCollection
@@ -868,7 +842,6 @@ RosterEngine.prototype._augmentPayloadCalendarRows = function (activeCalendarCol
  * ta past na mi ginontai allocates katholou, ta current na ginontai allocated kanonika kai ta future na ginontai pseudoallocated
  * @method
  * @private
- * @see DB_Employee.prototype.getFullname @cached
  * @param {DB_Employee} employee 
  * @param {DB_Calendar} calendarRow 
  * @param {Boolean} not_future
@@ -1469,71 +1442,6 @@ RosterEngine.prototype._get_employee_desired_sko_score = function (employee) {
 };
 
 /**
- *
- * @method
- * @private
- * @param {String} dateString YYYY-MM-DD
- * @param {Number} daysNum integer
- * @returns {String} YYYY-MM-DD
- */
-RosterEngine.prototype._getNextDateByDays = function (dateString, daysNum) {
-
-    var key = dateString + ':' + daysNum;
-
-    if (this._getNextDateByDaysMap.has(key)) {
-
-        return this._getNextDateByDaysMap.get(key);
-
-    }
-
-    var date = new Date(dateString);
-
-    date.setDate(date.getDate() + daysNum);
-
-    var year = date.getFullYear();
-    var month = String(date.getMonth() + 1).padStart(2, '0');
-    var day = String(date.getDate()).padStart(2, '0');
-
-    this._getNextDateByDaysMap.set(key, year + '-' + month + '-' + day);
-
-    return this._getNextDateByDaysMap.get(key);
-
-};
-
-/**
- * @see lib_getPreviousDate
- * @param {String} currentDateStr YYYY-MM-DD
- * @param {Number} shiftId 
- * @returns {DB_Calendar|null}
- */
-RosterEngine.prototype._getMostRecentCalendarShift = function (currentDateStr, shiftId) {
-
-    // console.log( 'run' );
-
-    var previousDateString = lib_getPreviousDate(currentDateStr);
-
-    for (var i = 0; i < 7; i++) {
-
-        var olderCalendarRow = this.olderCalendarRows.getByDateAndShiftId(previousDateString, shiftId);
-
-        if (olderCalendarRow === null) {
-
-            previousDateString = lib_getPreviousDate(previousDateString);
-
-        } else {
-
-            return olderCalendarRow;
-
-        }
-
-    }
-
-    return null;
-
-};
-
-/**
- * @see lib_getPreviousDate
  * @param {String} currentDateStr YYYY-MM-DD
  * @param {Number} shiftId 
  * @param {CalendarCollection} calendarCollection
@@ -1566,8 +1474,6 @@ RosterEngine.prototype.getMostRecentCalendarShiftFromPayload = function (current
 };
 
 /**
- * @see lib_getPreviousDate
- * @see EmployeesCollection.removeById @noncachable
  * @param {EmployeesCollection} employees 
  * @param {String} currentDate YYYY-MM-DD
  */
@@ -1592,9 +1498,6 @@ RosterEngine.prototype._removeEmployeesThatHadANightShiftTheDayBefore = function
 };
 
 /**
- * @see ShiftPondCollection.prototype.getPondByShiftId
- * @see ShiftPondCollection.prototype.getMasterShiftIdForPondId
- * @see CalendarCollection.prototype.getByShiftIdAndDate
  * @method
  * @private
  * @param {DB_Calendar} row 
@@ -1640,50 +1543,6 @@ RosterEngine.prototype.getMasterCalendarRowIdBySlaveCalendarRowInPayload = funct
 };
 
 /**
- *
- * @method
- * @private
- * @see CalendarCollection.prototype.getByIdCached
- * @param {DB_Calendar} row 
- * @returns {DB_Calendar|null}
- */
-RosterEngine.prototype._findMasterCalendarRowBySlaveCalendarRow = function (row) {
-
-    // console.log( 'run' );
-
-    if (this._findMasterCalendarRowBySlaveCalendarRowCache.has(row.id)) {
-
-        // console.log( 'cache hit' );
-
-        return this._findMasterCalendarRowBySlaveCalendarRowCache.get(row.id);
-
-    }
-
-    if (row.hasOwnProperty('_pondMasterRow') === false) {
-
-        this._findMasterCalendarRowBySlaveCalendarRowCache.set(row.id, null);
-
-        return null;
-
-    }
-
-    if (row._pondMasterRow === null) {
-
-        this._findMasterCalendarRowBySlaveCalendarRowCache.set(row.id, null);
-
-        return null;
-
-    }
-
-    this._findMasterCalendarRowBySlaveCalendarRowCache.set(row.id, this.todayCalendarRows.getByIdCached(row._pondMasterRow));
-
-    return this._findMasterCalendarRowBySlaveCalendarRowCache.get(row.id);
-
-};
-
-/**
- * @see DB_Role.prototype.getPoolsByPreference
- * @see RolesCollection.prototype.getByIdCached
  * @method
  * @private
  * @param {DB_Calendar} calendar_row 
@@ -2096,6 +1955,13 @@ RosterEngine.prototype._cull_eligibility_on_rows_sm = function (rows_collection)
     }
 };
 
+/**
+ * @method
+ * @public
+ * @param {DB_Calendar} row 
+ * @param {Boolean} exclude_unwilling 
+ * @returns {void}
+ */
 RosterEngine.prototype.filter_eligible_employees = function (row, exclude_unwilling = true) {
 
     if (exclude_unwilling) {
@@ -2187,13 +2053,6 @@ RosterEngine.prototype.calculate_employee_weekend_nightshift_weight_before_date 
 };
 
 /**
- * @see DB_Calendar.prototype.isEverydayShift @noncachable
- * @see DB_Calendar.prototype.isEveningShift @cached
- * @see DB_Calendar.prototype.isNightShift @cached
- * @see DB_Calendar.prototype.isWeekendShift @cached
- * @see DB_Calendar.prototype.isMorningShift @cached
- * @see DB_Calendar.prototype.isHolidayShift @noncachable
- * @see CalendarCollection.prototype.getAllForEmployeeId because it only runs once per day
  * @method
  * @private
  * @param {EmployeesCollection} employees
@@ -2322,22 +2181,6 @@ RosterEngine.prototype._augmentPayloadEmployees = function (employees, olderCale
     }
 
 };
-
-/**
- * @see HolidaysCollection.prototype.getNameByDate @cached
- * @see HolidaysCollection.prototype.getPreviousHolidayDate @cached
- * @method
- * @private
- * @param {String} dateString YYYY-MM-DD
- * @returns {String} YYYY-MM-DD
- */
-RosterEngine.prototype._get_source_holiday_date_by_date = function (dateString) {
-
-    let holiday_name = this.holidays.getNameByDate(dateString);
-
-    return this.holidays.getPreviousHolidayDate(dateString, this.holiday_connections[holiday_name]);
-
-}
 
 /**
  * 
@@ -3869,25 +3712,7 @@ RosterEngine.prototype.why_employee_can_not_go = function ( employeeId, calendar
 }
 
 /**
- * @see DB_Employee.prototype.getFullname @cached
- * @see DB_Calendar.prototype.isLinkedTargetShift @cached
- * @see DB_Calendar.prototype.isFilled @noncachable
- * @see DB_Calendar.prototype.isLinkedSourceShift @cached
- * @see DB_Calendar.prototype.isNightShift @cached
- * @see DB_Calendar.prototype.isNecessary @noncachable
- * @see DB_Calendar.prototype.isNotFilled @noncachable
- * @see DB_Calendar.prototype.isPondSlave @cached
- * @see DB_Calendar.prototype.isUnnecessary @noncachable
- * @see DB_Calendar.prototype.isPondMaster @cached
- * @see HolidaysCollection.prototype.getNameByDate @cached
- * @see EmployeesCollection.prototype.getById @noncachable
- * @see EmployeesCollection.prototype.removeById @noncachable
- * @see CalendarCollection.prototype.concatCollection
- * @see CalendarCollection.prototype.sortByEligibleEmployeesAsc
- * @see CalendarCollection.prototype.removeById @noncachable
- * @see RosterEngine.prototype._allocate
- * @see RosterEngine.prototype._autofill_future_nightshifts
- * @see RosterEngine.prototype._findMasterCalendarRowBySlaveCalendarRow
+ * 
  */
 RosterEngine.prototype.calculate = function () {
 

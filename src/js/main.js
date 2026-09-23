@@ -2070,14 +2070,14 @@ RosterEngine.prototype._augmentPayloadEmployees = function (employees, olderCale
 
         employee._all_weekends = new CalendarCollection([]);
         employee._weekends_worked = new CalendarCollection([]);//is this used in any states? use in can employee fill shift and assignment
-        employee._shifts_worked = olderCalendarRows.getAllForEmployeeId(employee.id);
+        employee._shifts_worked = olderCalendarRows.findAll( 'employee_id', employee.id );
         employee._nights_worked = new CalendarCollection([]);
-        employee._future_set_shifts = futureCalendarRows.getAllForEmployeeId(employee.id);
+        employee._future_set_shifts = futureCalendarRows.findAll( 'employee_id', employee.id );
         employee._future_set_nights = new CalendarCollection([]);
         employee._future_provisional_nights = new CalendarCollection([]);
         employee._future_set_weekends = new CalendarCollection([]);
         employee._future_provisional_weekends = new CalendarCollection([]);
-        employee._current_set_shifts = currentCalendarRows.getAllForEmployeeId(employee.id);
+        employee._current_set_shifts = currentCalendarRows.findAll( 'employee_id', employee.id );
         employee._current_set_nights = new CalendarCollection([]);
         employee._current_set_weekends = new CalendarCollection([]);
         employee._current_provisional_nights = new CalendarCollection([]);

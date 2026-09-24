@@ -3696,6 +3696,10 @@ RosterEngine.prototype.calculate = function () {
     payload['fridayNightWeight'] = this.settings.nightParaskeuiVariant;
     payload['saturdayNightWeight'] = this.settings.nightSavvatoVariant;
     payload['sundayNightWeight'] = this.settings.nightKyriakiVariant;
+    payload['triggerEarlyExit'] = false;
+    payload['data_object_stateName'] = "";
+    payload['data_object_rowIDs'] = [];
+    payload['data_object_dateSpan'] = this.fromDate + "-" + this.untilDate;
 
     this._augmentPayloadEmployees(payload.employees, payload.pastRows, payload.futureRows, payload.currentRows);
     this._augmentPayloadCalendarRows(payload.currentRows, payload.allRows, payload.employees, this.fromDate);
@@ -3802,12 +3806,18 @@ RosterEngine.prototype.calculate = function () {
     let state_machine_instance = new Machine();
     state_machine_instance.payload = payload;
 
-    state_machine_instance.run_from_state(initial_state);
+    let machine_result = state_machine_instance.run_from_state(initial_state);
 
     // const employeeToCheck = this.employees.getById( 161 );
     // const dateString = '2026-09-27';
     // console.log( structuredClone( this._get_employee_nyx_scores_by_date( employeeToCheck, dateString ) ) );
     // console.log( structuredClone( this._get_employee_sko_scores_by_date( employeeToCheck, dateString ) ) );
+
+    if ( machine_result != null ) {
+
+        lib_handleEngineStop( machine_result.dateSpan, machine_result.rowIDs, machine_result.stateName, this);
+
+    }
 
 };
 

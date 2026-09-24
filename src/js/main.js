@@ -5,7 +5,7 @@ function RosterEngine() {
      * @property
      * @type {Number} int
      */
-    this.DISTANCE_FROM_NIGHT = 8;
+    this.DISTANCE_FROM_NIGHT = 9;
 
     /**
      * @public

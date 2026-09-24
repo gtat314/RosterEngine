@@ -502,22 +502,6 @@ RosterEngine.prototype.set_timetables = function (timetables) {
 /**
  * @method
  * @public
- * @description this is a helper function for getting some data for UI info client side, and bears no weight in the engine whatsoever
- * @returns {Number}
- */
-RosterEngine.prototype.get_employeesWithoutLeaveForDate = function () {
-
-    var employees = this.employees.getWithoutLeaveForDate(this.todayCalendarRows.getElement(0).date, this.leaves);
-
-    this._removeEmployeesThatHadANightShiftTheDayBefore(employees);
-
-    return employees.length;
-
-};
-
-/**
- * @method
- * @public
  * @returns {void}
  */
 RosterEngine.prototype.save = function (callbackFunc) {
@@ -1470,30 +1454,6 @@ RosterEngine.prototype.getMostRecentCalendarShiftFromPayload = function (current
     }
 
     return null;
-
-};
-
-/**
- * @param {EmployeesCollection} employees 
- * @param {String} currentDate YYYY-MM-DD
- */
-RosterEngine.prototype._removeEmployeesThatHadANightShiftTheDayBefore = function (employees) {
-
-    // console.log( 'run' );
-
-    var previousDateString = lib_getPreviousDate(this.todayCalendarRows.getElement(0).date);
-
-    var previousDateCalendarRows = this.olderCalendarRows.getAllByDate(previousDateString);
-
-    for (var row of previousDateCalendarRows) {
-
-        if (row.shift_times === '21:00-07:00' && row.employee_id !== null) {
-
-            employees.removeById(row.employee_id);
-
-        }
-
-    }
 
 };
 

@@ -3675,7 +3675,7 @@ RosterEngine.prototype.why_employee_can_not_go = function ( employeeId, calendar
  * this method ended up returning boolean, in order to evaluate that this method can allow its next one to run or not, like running save() after it
  * @returns {Boolean}
  */
-RosterEngine.prototype.calculate = function () {
+RosterEngine.prototype.calculate = function ( starting_state = 'none' ) {
 
     let payload = new Object();
     payload['nextState'] = null;
